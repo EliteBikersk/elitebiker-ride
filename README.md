@@ -1,27 +1,33 @@
 # EliteBiker Ride – nejazdi sám
 
-Demo aplikácie od [EliteBiker](https://www.elitebiker.sk/) na spoločné jazdy s partiou.
+Aplikácia od [EliteBiker](https://www.elitebiker.sk/) na spoločné jazdy s partiou.
 Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pridaj sa k nim, keď idú oni.
 
-**Živá stránka:** https://elitebikersk.github.io/elitebiker-ride/
+**Stránka:** https://elitebikersk.github.io/elitebiker-ride/
 
-## Čo demo ukazuje
-- Prihlásenie cez Instagram – meno a profilová fotka z Instagramu, vek.
-- Jazdy partie, „Pridám sa“, zopakovanie obvyklej jazdy jedným ťukom.
-- „Komu pošleš jazdu?“ – skratky ako na Snapchate (MTB partia, Gravel pohodári, všetci priatelia…). Jazdu vidia len vybraní.
-- Chat len pre účastníkov, po skončení jazdy sa zmaže. Fotky k jazde ostávajú.
-- Strava (štatistiky, km od servisu – vidí ich len majiteľ), zdieľanie do Instagram Story.
-- EliteBiker Klub – body, kontrola a servis zdarma, zľavy pre členov, odkazy do e-shopu.
+## Funkcie
+- Prihlásenie cez **Instagram** (meno a profilovka z Instagramu) alebo e-mailom, vek pri každom bikerovi.
+- **Jazdy**: typ, deň a čas, **stretko na mape so špendlikom** (posúvaš mapu ako vo Wolte, vyhľadávanie adries, moja poloha),
+  **trasa nakreslená ťukaním na mapu** s výpočtom km, tempo, poznámka. Navigácia na stretko cez Google Mapy / Waze.
+- **Zopakuj obvyklú jazdu** jedným ťukom.
+- **Komu pošleš jazdu?** – skratky ako na Snapchate (vlastné skupiny), jazdu vidia len vybraní.
+  Organizátor rozhodne, či môžu pozývať aj účastníci.
+- **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú.
+- **Strava**: týždeň, posledné aktivity, km za rok, bicykle s najazdenými km (vidí len majiteľ).
+- **EliteBiker Klub**: body, odmeny (kontrola a servis zdarma…), zľavy pre členov, odkazy do e-shopu.
+- Responzívne (mobil, tablet, počítač), dá sa pridať na plochu telefónu.
 
 ## Technicky
-- Jeden súbor `index.html` (HTML + CSS + JavaScript), bez buildu a závislostí.
-- Responzívne: mobil (spodné menu), tablet (centrovaný obsah), počítač (bočné menu, detail jazdy ako panel vpravo), široký monitor (aj popis konceptu).
-- Dá sa pridať na plochu telefónu (`manifest.webmanifest`).
-- Údaje sú vymyslené a uložené len v pamäti prehliadača – po obnovení stránky sa demo vráti na začiatok.
-- Prepojenie s Instagramom a Stravou je v deme simulované.
+- Statická stránka (HTML/CSS/JS bez buildu) na GitHub Pages.
+- Server: **Supabase** – PostgreSQL s pravidlami prístupu (RLS), prihlásenie, realtime chat, úložisko, Edge Functions.
+- Mapy: Leaflet + OpenStreetMap, adresy cez Nominatim.
+- `supabase/schema.sql` – databáza, `supabase/functions/` – Instagram a Strava (tajné kľúče len na serveri).
+- Bez vyplneného `js/config.js` beží **skúšobný režim** s vymyslenými údajmi (`js/mock.js`).
 
-## Spustenie lokálne
-Stačí otvoriť `index.html` v prehliadači.
+## Zapojenie
+Návod krok za krokom: [SETUP.md](SETUP.md)
 
-## Nasadenie
-GitHub Pages z vetvy `main`, priečinok `/` (root).
+## Lokálne
+```bash
+python3 -m http.server 8080   # potom http://localhost:8080
+```

@@ -1,0 +1,339 @@
+-- =====================================================================
+-- EliteBiker Ride – databáza (Supabase / PostgreSQL)
+-- Spusti celé v Supabase: SQL Editor → New query → vlož → Run.
+-- Skript sa dá spustiť aj opakovane (používa IF NOT EXISTS / OR REPLACE).
+-- =====================================================================
+
+create extension if not exists pg_cron;
+
+-- ---------------------------------------------------------------------
+-- 1. Profily (verejné údaje bikera – vidia ich prihlásení používatelia)
+-- ---------------------------------------------------------------------
+create table if not exists public.profiles (
+  id               uuid primary key references auth.users(id) on delete cascade,
+  ig_username      text unique check (ig_username ~ '^[a-z0-9._]{1,30}$'),
+  ig_user_id       text unique,
+  ig_verified      boolean not null default false,   -- true = prihlásený cez Instagram
+  display_name     text check (char_length(display_name) <= 60),
+  avatar_url       text,
+  age              int check (age between 14 and 99),
+  city             text check (char_length(city) <= 60),
+  bike_types       text[] not null default '{}',
+  strava_connected boolean not null default false,
+  created_at       timestamptz not null default now()
+);
+
+-- Tokeny – bez politík, takže k nim má prístup len server (service role)
+create table if not exists public.ig_tokens (
+  user_id      uuid primary key references public.profiles(id) on delete cascade,
+  ig_user_id   text not null,
+  access_token text not null,
+  expires_at   timestamptz,
+  updated_at   timestamptz not null default now()
+);
+create table if not exists public.strava_tokens (
+  user_id       uuid primary key references public.profiles(id) on delete cascade,
+  athlete_id    bigint not null unique,
+  access_token  text not null,
+  refresh_token text not null,
+  expires_at    timestamptz not null,
+  scope         text,
+  updated_at    timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
+-- 2. Priatelia a skratky (ako na Snapchate)
+-- ---------------------------------------------------------------------
+create table if not exists public.friendships (
+  requester  uuid not null references public.profiles(id) on delete cascade,
+  addressee  uuid not null references public.profiles(id) on delete cascade,
+  status     text not null default 'pending' check (status in ('pending','accepted')),
+  created_at timestamptz not null default now(),
+  primary key (requester, addressee),
+  check (requester <> addressee)
+);
+
+create table if not exists public.shortcuts (
+  id         uuid primary key default gen_random_uuid(),
+  owner      uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  name       text not null check (char_length(name) between 1 and 30),
+  emoji      text not null default '⭐',
+  members    uuid[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
+-- 3. Jazdy
+-- ---------------------------------------------------------------------
+create table if not exists public.rides (
+  id            uuid primary key default gen_random_uuid(),
+  host          uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  type          text not null check (type in ('cesta','gravel','mtb','ebike')),
+  title         text not null check (char_length(title) between 1 and 80),
+  note          text check (char_length(note) <= 500),
+  starts_at     timestamptz not null,
+  ends_at       timestamptz not null,
+  meet_lat      double precision not null check (meet_lat between -90 and 90),
+  meet_lng      double precision not null check (meet_lng between -180 and 180),
+  meet_label    text check (char_length(meet_label) <= 160),
+  route         jsonb,                 -- [[lat,lng],...] nakreslená trasa
+  distance_km   numeric(6,1),
+  elevation_m   int,
+  pace          text not null default 'stredne' check (pace in ('pohoda','stredne','rychlo')),
+  allow_invites boolean not null default false,
+  audience_kind text not null default 'pick' check (audience_kind in ('pick','friends')),
+  created_at    timestamptz not null default now(),
+  check (ends_at > starts_at)
+);
+create index if not exists rides_starts_idx on public.rides(starts_at);
+
+-- kto jazdu vidí (pozvaní)
+create table if not exists public.ride_audience (
+  ride_id    uuid not null references public.rides(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  invited_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (ride_id, user_id)
+);
+-- kto ide
+create table if not exists public.ride_participants (
+  ride_id   uuid not null references public.rides(id) on delete cascade,
+  user_id   uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (ride_id, user_id)
+);
+-- chat jazdy (maže sa po skončení jazdy)
+create table if not exists public.messages (
+  id         bigint generated always as identity primary key,
+  ride_id    uuid not null references public.rides(id) on delete cascade,
+  user_id    uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  body       text not null check (char_length(body) between 1 and 1000),
+  created_at timestamptz not null default now()
+);
+create index if not exists messages_ride_idx on public.messages(ride_id, created_at);
+-- fotky z jazdy (ostávajú aj po jazde)
+create table if not exists public.ride_photos (
+  id         uuid primary key default gen_random_uuid(),
+  ride_id    uuid not null references public.rides(id) on delete cascade,
+  user_id    uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  path       text not null,
+  created_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
+-- 4. Pomocné funkcie pre pravidlá prístupu
+-- ---------------------------------------------------------------------
+create or replace function public.are_friends(a uuid, b uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from friendships
+    where status = 'accepted'
+      and ((requester = a and addressee = b) or (requester = b and addressee = a)));
+$$;
+
+create or replace function public.ride_host(r uuid) returns uuid
+language sql stable security definer set search_path = public as $$
+  select host from rides where id = r;
+$$;
+
+create or replace function public.is_participant(r uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from ride_participants where ride_id = r and user_id = auth.uid());
+$$;
+
+create or replace function public.can_see_ride(r uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from rides where id = r and host = auth.uid())
+      or exists (select 1 from ride_audience where ride_id = r and user_id = auth.uid())
+      or exists (select 1 from ride_participants where ride_id = r and user_id = auth.uid());
+$$;
+
+create or replace function public.chat_open(r uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from rides where id = r and ends_at > now());
+$$;
+
+create or replace function public.can_invite(r uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from rides where id = r and ends_at > now()
+                 and (host = auth.uid() or (allow_invites and public.is_participant(r))));
+$$;
+
+-- ---------------------------------------------------------------------
+-- 5. Triggery
+-- ---------------------------------------------------------------------
+-- nový používateľ → profil (údaje z Instagramu prídu v metadátach)
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare m jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
+begin
+  insert into profiles (id, display_name, avatar_url, ig_username, ig_user_id, ig_verified)
+  values (new.id,
+          nullif(m->>'name',''),
+          nullif(m->>'avatar_url',''),
+          nullif(lower(m->>'ig_username'),''),
+          nullif(m->>'ig_user_id',''),
+          coalesce((m->>'ig_verified')::boolean, false))
+  on conflict (id) do nothing;
+  return new;
+end $$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- organizátor je automaticky účastník
+create or replace function public.handle_new_ride() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into ride_participants (ride_id, user_id) values (new.id, new.host) on conflict do nothing;
+  return new;
+end $$;
+drop trigger if exists on_ride_created on public.rides;
+create trigger on_ride_created after insert on public.rides
+  for each row execute function public.handle_new_ride();
+
+-- používateľ si sám nemôže nastaviť „overený Instagram“ ani Stravu
+create or replace function public.protect_profile() returns trigger
+language plpgsql as $$
+begin
+  if coalesce(auth.role(), '') = 'authenticated' then
+    new.ig_verified      := old.ig_verified;
+    new.ig_user_id       := old.ig_user_id;
+    new.strava_connected := old.strava_connected;
+    if old.ig_verified then new.ig_username := old.ig_username; end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists on_profile_update on public.profiles;
+create trigger on_profile_update before update on public.profiles
+  for each row execute function public.protect_profile();
+
+-- ---------------------------------------------------------------------
+-- 6. Pravidlá prístupu (Row Level Security)
+-- ---------------------------------------------------------------------
+alter table public.profiles          enable row level security;
+alter table public.ig_tokens         enable row level security;
+alter table public.strava_tokens     enable row level security;
+alter table public.friendships       enable row level security;
+alter table public.shortcuts         enable row level security;
+alter table public.rides             enable row level security;
+alter table public.ride_audience     enable row level security;
+alter table public.ride_participants enable row level security;
+alter table public.messages          enable row level security;
+alter table public.ride_photos       enable row level security;
+
+drop policy if exists "profily vidia prihlásení" on public.profiles;
+create policy "profily vidia prihlásení" on public.profiles for select to authenticated using (true);
+drop policy if exists "vlastný profil – úprava" on public.profiles;
+create policy "vlastný profil – úprava" on public.profiles for update to authenticated
+  using (id = auth.uid()) with check (id = auth.uid());
+drop policy if exists "vlastný profil – vytvorenie" on public.profiles;
+create policy "vlastný profil – vytvorenie" on public.profiles for insert to authenticated
+  with check (id = auth.uid());
+
+drop policy if exists "priateľstvá – čítanie" on public.friendships;
+create policy "priateľstvá – čítanie" on public.friendships for select to authenticated
+  using (auth.uid() in (requester, addressee));
+drop policy if exists "priateľstvá – žiadosť" on public.friendships;
+create policy "priateľstvá – žiadosť" on public.friendships for insert to authenticated
+  with check (requester = auth.uid() and status = 'pending');
+drop policy if exists "priateľstvá – prijatie" on public.friendships;
+create policy "priateľstvá – prijatie" on public.friendships for update to authenticated
+  using (addressee = auth.uid()) with check (addressee = auth.uid() and status = 'accepted');
+drop policy if exists "priateľstvá – zrušenie" on public.friendships;
+create policy "priateľstvá – zrušenie" on public.friendships for delete to authenticated
+  using (auth.uid() in (requester, addressee));
+
+drop policy if exists "skratky – vlastné" on public.shortcuts;
+create policy "skratky – vlastné" on public.shortcuts for all to authenticated
+  using (owner = auth.uid()) with check (owner = auth.uid());
+
+drop policy if exists "jazdy – čítanie" on public.rides;
+create policy "jazdy – čítanie" on public.rides for select to authenticated
+  using (host = auth.uid() or public.can_see_ride(id));
+drop policy if exists "jazdy – vytvorenie" on public.rides;
+create policy "jazdy – vytvorenie" on public.rides for insert to authenticated with check (host = auth.uid());
+drop policy if exists "jazdy – úprava" on public.rides;
+create policy "jazdy – úprava" on public.rides for update to authenticated
+  using (host = auth.uid()) with check (host = auth.uid());
+drop policy if exists "jazdy – zrušenie" on public.rides;
+create policy "jazdy – zrušenie" on public.rides for delete to authenticated using (host = auth.uid());
+
+drop policy if exists "publikum – čítanie" on public.ride_audience;
+create policy "publikum – čítanie" on public.ride_audience for select to authenticated
+  using (user_id = auth.uid() or public.ride_host(ride_id) = auth.uid() or public.is_participant(ride_id));
+drop policy if exists "publikum – pozvanie" on public.ride_audience;
+create policy "publikum – pozvanie" on public.ride_audience for insert to authenticated
+  with check (invited_by = auth.uid() and public.can_invite(ride_id) and public.are_friends(auth.uid(), user_id));
+drop policy if exists "publikum – odobratie" on public.ride_audience;
+create policy "publikum – odobratie" on public.ride_audience for delete to authenticated
+  using (public.ride_host(ride_id) = auth.uid());
+
+drop policy if exists "účastníci – čítanie" on public.ride_participants;
+create policy "účastníci – čítanie" on public.ride_participants for select to authenticated
+  using (public.can_see_ride(ride_id));
+drop policy if exists "účastníci – pridám sa" on public.ride_participants;
+create policy "účastníci – pridám sa" on public.ride_participants for insert to authenticated
+  with check (user_id = auth.uid() and public.can_see_ride(ride_id) and public.chat_open(ride_id));
+drop policy if exists "účastníci – odhlásim sa" on public.ride_participants;
+create policy "účastníci – odhlásim sa" on public.ride_participants for delete to authenticated
+  using (user_id = auth.uid() and public.ride_host(ride_id) <> auth.uid());
+
+drop policy if exists "chat – čítanie" on public.messages;
+create policy "chat – čítanie" on public.messages for select to authenticated
+  using (public.is_participant(ride_id) and public.chat_open(ride_id));
+drop policy if exists "chat – písanie" on public.messages;
+create policy "chat – písanie" on public.messages for insert to authenticated
+  with check (user_id = auth.uid() and public.is_participant(ride_id) and public.chat_open(ride_id));
+
+drop policy if exists "fotky – čítanie" on public.ride_photos;
+create policy "fotky – čítanie" on public.ride_photos for select to authenticated
+  using (user_id = auth.uid() or public.can_see_ride(ride_id));
+drop policy if exists "fotky – pridanie" on public.ride_photos;
+create policy "fotky – pridanie" on public.ride_photos for insert to authenticated
+  with check (user_id = auth.uid() and public.is_participant(ride_id));
+drop policy if exists "fotky – zmazanie" on public.ride_photos;
+create policy "fotky – zmazanie" on public.ride_photos for delete to authenticated using (user_id = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- 7. Úložisko: profilovky (verejné) a fotky z jázd (súkromné)
+-- ---------------------------------------------------------------------
+insert into storage.buckets (id, name, public) values ('avatars', 'avatars', true) on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('ride-photos', 'ride-photos', false) on conflict (id) do nothing;
+
+drop policy if exists "profilovky – nahranie" on storage.objects;
+create policy "profilovky – nahranie" on storage.objects for insert to authenticated
+  with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "profilovky – prepis" on storage.objects;
+create policy "profilovky – prepis" on storage.objects for update to authenticated
+  using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "fotky jázd – čítanie" on storage.objects;
+create policy "fotky jázd – čítanie" on storage.objects for select to authenticated
+  using (bucket_id = 'ride-photos' and public.can_see_ride(((storage.foldername(name))[1])::uuid));
+drop policy if exists "fotky jázd – nahranie" on storage.objects;
+create policy "fotky jázd – nahranie" on storage.objects for insert to authenticated
+  with check (bucket_id = 'ride-photos' and public.is_participant(((storage.foldername(name))[1])::uuid)
+              and (storage.foldername(name))[2] = auth.uid()::text);
+drop policy if exists "fotky jázd – zmazanie" on storage.objects;
+create policy "fotky jázd – zmazanie" on storage.objects for delete to authenticated
+  using (bucket_id = 'ride-photos' and (storage.foldername(name))[2] = auth.uid()::text);
+
+-- ---------------------------------------------------------------------
+-- 8. Živé aktualizácie (chat, kto sa pridal, nové jazdy, žiadosti)
+-- ---------------------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['messages','ride_participants','ride_audience','rides','friendships','ride_photos'] loop
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime'
+                   and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 9. Chat sa po skončení jazdy zmaže (každých 15 minút)
+-- ---------------------------------------------------------------------
+select cron.unschedule('eb-ride-chat-cleanup') where exists (select 1 from cron.job where jobname = 'eb-ride-chat-cleanup');
+select cron.schedule('eb-ride-chat-cleanup', '*/15 * * * *',
+  $$delete from public.messages m using public.rides r where m.ride_id = r.id and r.ends_at < now()$$);
