@@ -1,0 +1,12 @@
+<!-- Supabase → Authentication → Emails → Magic link or OTP
+     Predmet: Prihlásenie do EliteBiker Ride -->
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#111">
+  <img src="https://cdn.myshoptet.com/usr/www.elitebiker.sk/user/logos/logo-1.png" alt="EliteBiker" style="height:36px;margin-bottom:20px">
+  <h2 style="margin:0 0 12px;font-size:20px">Prihlásenie do EliteBiker Ride</h2>
+  <p style="margin:0 0 20px;line-height:1.5">Ťukni na tlačidlo a si dnu. Odkaz platí 1 hodinu a funguje len raz.</p>
+  <p style="margin:0 0 24px">
+    <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#1b46e5;color:#fff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:8px">Prihlásiť sa</a>
+  </p>
+  <p style="margin:0 0 6px;font-size:13px;color:#555">Alebo zadaj kód: <b style="letter-spacing:2px">{{ .Token }}</b></p>
+  <p style="margin:24px 0 0;font-size:12px;color:#888">Ak si o prihlásenie nežiadal, tento e-mail ignoruj.<br>EliteBiker s.r.o. · <a href="https://www.elitebiker.sk/" style="color:#888">elitebiker.sk</a></p>
+</div>

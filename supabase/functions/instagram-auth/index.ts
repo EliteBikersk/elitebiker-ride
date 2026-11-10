@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   try {
     const body = await readJson(req);
     const code = String(body.code ?? "").replace(/#_$/, "");
-    const redirectUri = env("APP_URL");
+    const redirectUri = (Deno.env.get("APP_URL") || "https://elitebikersk.github.io/elitebiker-ride/");
     if (!code) return json(req, { error: "Chýba kód z Instagramu." }, 400);
 
     // 1) kód → krátkodobý token

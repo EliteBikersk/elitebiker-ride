@@ -69,6 +69,9 @@
     loginEmail: function (email) {
       return sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: C.APP_URL + location.search } }).then(function (r) { fail(r.error, "E-mail sa nepodarilo odoslať. Skús to o chvíľu."); });
     },
+    verifyEmailCode: function (email, code) {
+      return sb.auth.verifyOtp({ email: email, token: code, type: "email" }).then(function (r) { fail(r.error, "Kód nesedí alebo vypršal. Pošli si nový."); });
+    },
     logout: function () { return sb.auth.signOut(); },
     handleRedirect: function () {
       var p = new URLSearchParams(location.search), code = p.get("code"), state = p.get("state") || "", err = p.get("error_description") || p.get("error");

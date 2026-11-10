@@ -76,6 +76,7 @@
       D.me = { id: "me", ig_username: null, display_name: "", age: null, city: "", bike_types: [], avatar_url: null, ig_verified: false, strava_connected: false, email: email };
       save(); return wait().then(function () { setTimeout(function () { location.reload(); }, 900); });
     },
+    verifyEmailCode: function () { return wait(); },
     logout: function () { localStorage.removeItem(KEY); load(); return wait(); },
     handleRedirect: function () { return wait(null); },
     me: function () { return wait(copy(D.me)); },

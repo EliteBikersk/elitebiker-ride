@@ -110,7 +110,19 @@
     $("emailForm").onsubmit = function (e) {
       e.preventDefault(); var v = $("email").value.trim(), b = e.target.querySelector("button");
       b.disabled = true; b.innerHTML = '<span class="spin-sm"></span>';
-      api.loginEmail(v).then(function () { toast("Poslali sme ti e-mail. Otvor odkaz v ňom na tomto zariadení."); b.innerHTML = "Odoslané ✓"; }).catch(function (x) { b.disabled = false; b.textContent = "Poslať odkaz"; err(x); });
+      api.loginEmail(v).then(function () {
+        toast("Poslali sme ti e-mail. Ťukni na odkaz alebo opíš kód.");
+        b.innerHTML = "Odoslané ✓";
+        var f = document.createElement("form"); f.className = "inp-row"; f.id = "codeForm"; f.style.marginTop = "10px";
+        f.innerHTML = '<input class="inp" id="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" maxlength="8" required placeholder="Kód z e-mailu"><button class="btn" type="submit">Prihlásiť</button>';
+        $("emailForm").after(f);
+        f.onsubmit = function (ev) {
+          ev.preventDefault(); var cb = f.querySelector("button"); cb.disabled = true; cb.innerHTML = '<span class="spin-sm"></span>';
+          api.verifyEmailCode(v, $("otp").value.trim()).then(function () { location.href = location.pathname + location.search; })
+            .catch(function (x) { cb.disabled = false; cb.textContent = "Prihlásiť"; err(x); });
+        };
+        $("otp").focus();
+      }).catch(function (x) { b.disabled = false; b.textContent = "Poslať odkaz"; err(x); });
     };
   }
   function needsOnboarding() { return !S.me || !S.me.age || !S.me.ig_username; }
