@@ -21,8 +21,8 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   var tt; function toast(m, bad) { var t = $("toast"); t.querySelector("span").innerHTML = m; t.classList.toggle("bad", !!bad); t.classList.add("show"); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove("show"); }, 3600); }
   function err(e) { console.error(e); toast(esc(e && e.message || "Niečo sa pokazilo."), true); }
-  function d(iso) { return iso ? new Date(iso).toLocaleDateString("sk-SK", { day: "numeric", month: "numeric", year: "numeric" }) : "–"; }
-  function dt(iso) { return iso ? new Date(iso).toLocaleString("sk-SK", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–"; }
+  function d(iso) { return iso ? new Date(iso).toLocaleDateString("sk-SK", { day: "numeric", month: "numeric", year: "numeric" }) : "nie"; }
+  function dt(iso) { return iso ? new Date(iso).toLocaleString("sk-SK", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "nie"; }
   function ago(iso) {
     if (!iso) return "nikdy";
     var m = Math.round((Date.now() - new Date(iso)) / 6e4);
@@ -87,7 +87,7 @@
       sb.auth.signInWithOtp({ email: A.email, options: { shouldCreateUser: false } }).then(function (r) {
         unspin(b);
         if (r.error) { toast(/seconds|rate/i.test(r.error.message) ? "Kód sme poslali len pred chvíľou. Skús o minútu." : "Kód sa nepodarilo poslať.", true); return; }
-        A.sent = true; renderLogin(); toast("Kód je na ceste – pozri e-mail."); $("c-code").focus();
+        A.sent = true; renderLogin(); toast("Kód je na ceste, pozri si e-mail."); $("c-code").focus();
       });
     };
     if (vf) vf.onsubmit = function (e) {
@@ -138,7 +138,7 @@
     $("mf").onsubmit = function (e) {
       e.preventDefault(); var b = $("mf").querySelector("button"); spin(b);
       sb.auth.mfa.challengeAndVerify({ factorId: factorId, code: $("m-code").value.replace(/\D/g, "") }).then(function (x) {
-        if (x.error) { unspin(b); toast("Kód nesedí alebo už vypršal – zadaj aktuálny.", true); return; }
+        if (x.error) { unspin(b); toast("Kód nesedí alebo už vypršal. Zadaj aktuálny.", true); return; }
         check();
       });
     };
@@ -215,12 +215,12 @@
   function drawUsers() {
     var el = $("ulist"); if (!el) return;
     if (!A.users.length) { el.innerHTML = '<div class="adm-empty">Nikoho sme nenašli.</div>'; return; }
-    el.innerHTML = '<div class="adm-count">' + n(A.total) + " " + (A.total === 1 ? "používateľ" : A.total < 5 ? "používatelia" : "používateľov") + (A.total > A.users.length ? " · zobrazených " + A.users.length + " – spresni hľadanie" : "") + "</div>" +
+    el.innerHTML = '<div class="adm-count">' + n(A.total) + " " + (A.total === 1 ? "používateľ" : A.total < 5 ? "používatelia" : "používateľov") + (A.total > A.users.length ? " · zobrazených " + A.users.length + ", spresni hľadanie" : "") + "</div>" +
       '<div class="utable"><div class="uhead"><span>Používateľ</span><span>Mesto · vek</span><span>Registrácia</span><span>Naposledy</span><span>Jazdy</span><span class="r">Body</span></div>' +
       A.users.map(function (u) {
         return '<button class="urow' + (A.sel === u.id ? " on" : "") + '" data-a="user" data-id="' + u.id + '">' +
           '<span class="ucell who">' + avatar(u) + '<span class="grow"><b>' + esc(u.display_name || "bez mena") + "</b><small>" + esc(u.email || "") + "</small></span></span>" +
-          '<span class="ucell"><small class="lbl">Mesto</small>' + esc([u.city, u.age ? u.age + " r." : ""].filter(Boolean).join(" · ") || "–") + "</span>" +
+          '<span class="ucell"><small class="lbl">Mesto</small>' + esc([u.city, u.age ? u.age + " r." : ""].filter(Boolean).join(" · ") || "nevyplnené") + "</span>" +
           '<span class="ucell"><small class="lbl">Registrácia</small>' + d(u.created_at) + "</span>" +
           '<span class="ucell"><small class="lbl">Naposledy</small>' + ago(u.last_sign_in_at) + "</span>" +
           '<span class="ucell"><small class="lbl">Jazdy</small>' + n(u.joined + u.hosted) + (u.hosted ? ' <small class="mu">(' + u.hosted + " org.)</small>" : "") + "</span>" +
@@ -249,7 +249,7 @@
       '<h3>Pridať alebo odobrať body</h3><form id="gf" class="dr-give" novalidate><div class="seg"><button type="button" data-a="sign" data-s="1" class="' + (g.sign > 0 ? "on" : "") + '">＋ Pridať</button><button type="button" data-a="sign" data-s="-1" class="' + (g.sign < 0 ? "on" : "") + '">− Odobrať</button></div>' +
       '<div class="quick">' + [50, 100, 200, 500].map(function (x) { return '<button type="button" data-a="amt" data-v="' + x + '" class="' + (amt === x ? "on" : "") + '">' + x + "</button>"; }).join("") + "</div>" +
       '<input class="inp" id="g-amt" inputmode="numeric" placeholder="Počet bodov" value="' + esc(g.amount) + '">' +
-      '<input class="inp" id="g-why" maxlength="200" placeholder="Dôvod – uvidí ho aj používateľ" value="' + esc(g.reason) + '" style="margin-top:8px">' +
+      '<input class="inp" id="g-why" maxlength="200" placeholder="Dôvod (uvidí ho aj používateľ)" value="' + esc(g.reason) + '" style="margin-top:8px">' +
       '<div class="quick">' + reasons.map(function (r) { return '<button type="button" data-a="why" data-v="' + esc(r) + '">' + esc(r) + "</button>"; }).join("") + "</div>" +
       '<button class="btn full' + (g.sign < 0 ? " neg" : "") + '" type="submit">' + (g.sign > 0 ? "Pridať" : "Odobrať") + (amt ? " " + n(amt) + " bodov" : " body") + "</button></form>" +
       '<h3>Vydať odmenu</h3><p class="mu sm">Body sa odpočítajú zo zostatku. Ťukni dvakrát na potvrdenie.</p><div class="dr-rw">' + REWARDS.map(function (r, i) {
@@ -264,10 +264,10 @@
       e.preventDefault();
       var v = parseInt(String($("g-amt").value).replace(/[^\d]/g, ""), 10), why = $("g-why").value.trim(), b = f.querySelector("button[type=submit]");
       if (!(v >= 1 && v <= 100000)) { toast("Zadaj počet bodov (1 až 100 000).", true); return; }
-      if (!why) { toast("Napíš dôvod – uvidí ho aj používateľ.", true); $("g-why").focus(); return; }
+      if (!why) { toast("Napíš dôvod. Uvidí ho aj používateľ.", true); $("g-why").focus(); return; }
       spin(b);
       rpc("admin_adjust_points", { p_user: u.id, p_delta: v * A.give.sign, p_reason: why, p_kind: "bonus" }).then(function () {
-        toast((A.give.sign > 0 ? "Pridané" : "Odobraté") + " <b>" + n(v) + "</b> bodov – " + esc(u.display_name || u.email) + ".");
+        toast((A.give.sign > 0 ? "Pridané" : "Odobraté") + " <b>" + n(v) + "</b> bodov: " + esc(u.display_name || u.email) + ".");
         A.give = { sign: 1, amount: "", reason: "" }; afterChange(u.id);
       }).catch(function (e2) { unspin(b); err(e2); });
     };
@@ -289,7 +289,7 @@
   function drawRides() {
     var r = A.rides, c = r.counts;
     $("pane").innerHTML = '<div class="adm-rc"><div><b>' + n(c.public) + '</b><small>🌍 verejných</small></div><div><b>' + n(c.friends) + '</b><small>👥 pre partiu</small></div><div><b>' + n(c.private) + '</b><small>🔒 len pre vybraných</small></div></div>' +
-      '<p class="mu sm" style="margin:8px 2px 14px">Jazdy pre partiu a pre vybraných sú súkromné – administrácia vidí len ich počet. Verejnú jazdu s nevhodným obsahom môžeš zrušiť.</p>' +
+      '<p class="mu sm" style="margin:8px 2px 14px">Jazdy pre partiu a pre vybraných sú súkromné, administrácia vidí len ich počet. Verejnú jazdu s nevhodným obsahom môžeš zrušiť.</p>' +
       (r.public.length ? r.public.map(function (x) {
         var del = A.del === x.id;
         return '<div class="adm-ride"><div class="grow"><b>' + esc(x.title) + '</b><small>' + esc(TYPES[x.type] || x.type) + " · " + dt(x.starts_at) + " · " + esc(x.meet_label || "") + "</small><small>organizuje <b>" + esc(x.host_name || "?") + "</b> · " + x.people + (x.max_people ? "/" + x.max_people : "") + " ľudí</small>" +
@@ -311,9 +311,9 @@
     var L = A.log || [];
     $("pane").innerHTML = L.length ? '<div class="adm-log">' + L.map(function (l) {
       var x = l.detail || {}, who = esc(l.target_name || "zmazaný účet"), t;
-      if (l.action === "points") t = (x.delta > 0 ? "+" : "−") + n(Math.abs(x.delta)) + " b pre <b>" + who + "</b> – " + esc(x.reason);
+      if (l.action === "points") t = (x.delta > 0 ? "+" : "−") + n(Math.abs(x.delta)) + " b pre <b>" + who + "</b>: " + esc(x.reason);
       else if (l.action === "reward") t = "Odmena <b>" + esc(x.reason) + "</b> (−" + n(Math.abs(x.delta)) + " b) pre <b>" + who + "</b>";
-      else if (l.action === "ride_delete") t = "Zrušená verejná jazda „" + esc(x.title) + "“ od <b>" + who + "</b> – " + esc(x.reason);
+      else if (l.action === "ride_delete") t = "Zrušená verejná jazda „" + esc(x.title) + "“ od <b>" + who + "</b>: " + esc(x.reason);
       else t = esc(l.action);
       return '<div><small>' + dt(l.at) + " · " + esc(l.admin || "admin") + "</small><p>" + t + "</p></div>"; }).join("") + "</div>"
       : '<div class="adm-empty">Zatiaľ žiadne zmeny.</div>';
@@ -345,7 +345,7 @@
       var earned = x[5] * 20 + x[6] * 50 + x[7] * 10 + x[8];
       return { id: "0000000" + i + "-aaaa-bbbb-cccc-00000000000" + i, display_name: x[0], email: x[1], city: x[2], age: x[3], ig_username: x[4], fb_name: null, avatar_url: null, created_at: new Date(Date.now() - (i + 2) * 864e5 * 9).toISOString(), last_sign_in_at: new Date(Date.now() - i * 36e5 * 7).toISOString(), joined: x[5], hosted: x[6], photos: x[7], bonus: x[8], spent: x[9], earned: earned, balance: earned - x[9], hist: [] };
     }),
-    log: [], rides: [{ id: "r1", title: "Večerný okruh Strážov – pre všetkých", type: "mtb", starts_at: new Date(Date.now() + 2 * 864e5).toISOString(), meet_label: "Parkovisko pod Strážovom", host_name: "Lucia Malá", people: 3, max_people: 10, note: "Pridať sa môže hocikto." }],
+    log: [], rides: [{ id: "r1", title: "Večerný okruh Strážov pre všetkých", type: "mtb", starts_at: new Date(Date.now() + 2 * 864e5).toISOString(), meet_label: "Parkovisko pod Strážovom", host_name: "Lucia Malá", people: 3, max_people: 10, note: "Pridať sa môže hocikto." }],
     rpc: function (name, a) {
       var D = Demo, wait = function (v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 150); }); }, U = function (id) { return D.users.filter(function (u) { return u.id === id; })[0]; };
       if (name === "admin_overview") return wait({ users: D.users.length, users_7d: 1, active_30d: 3, rides_upcoming: 5, public_upcoming: D.rides.length, rides_30d: 11, points_balance: D.users.reduce(function (s, u) { return s + u.balance; }, 0), rewards_30d: D.log.filter(function (l) { return l.action === "reward"; }).length });

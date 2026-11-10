@@ -123,7 +123,7 @@
       if (a === "loc") locate(m, opts.toast);
       if (a === "ok") {
         var c = m.getCenter(), note = root.querySelector("#mpLabel").value.trim();
-        opts.onPick({ lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6), label: (addr || "Miesto na mape") + (note ? " – " + note : ""), addr: addr, note: note });
+        opts.onPick({ lat: +c.lat.toFixed(6), lng: +c.lng.toFixed(6), label: (addr || "Miesto na mape") + (note ? " · " + note : ""), addr: addr, note: note });
       }
     };
     return m;
@@ -143,7 +143,7 @@
     root.innerHTML =
       '<div class="mp" id="mp"><div class="mp-map"><div id="mpMap" style="position:absolute;inset:0"></div>' +
       '<div class="mp-top"><button class="icb" data-mp="close" aria-label="Zavrieť">' + opts.icons.back + '</button><div class="mp-search"><input id="mpQ" placeholder="Posunúť mapu na miesto…" autocomplete="off"><div class="mp-res" id="mpRes" hidden></div></div></div>' +
-      '<div class="mp-hint" id="mpHint">Ťukaj na mapu – body sa spoja do trasy</div>' +
+      '<div class="mp-hint" id="mpHint">Ťukaj na mapu, body sa spoja do trasy</div>' +
       '<div class="mp-loc"><button class="icb" data-mp="loc" aria-label="Moja poloha">' + opts.icons.loc + '</button></div></div>' +
       '<div class="mp-card"><div class="eyebrow">Trasa jazdy</div><div class="addr" id="mpKm"></div>' +
       '<div class="row2"><button class="btn gh" data-mp="undo">Späť</button><button class="btn gh" data-mp="loop">Okruh</button><button class="btn gh" data-mp="clear">Vymazať</button><button class="btn" style="flex:1" data-mp="ok">Hotovo</button></div></div></div>';

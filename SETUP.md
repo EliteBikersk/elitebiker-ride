@@ -4,8 +4,8 @@ Stránka beží na GitHub Pages. Kým nie je vyplnený `js/config.js`, beží v 
 (vymyslené údaje, uložené len v prehliadači). Na ostrú prevádzku stačí **Supabase** (zadarmo, Free plán):
 databáza, prihlásenie e-mailom, chat v reálnom čase, fotky a funkcia na zmazanie účtu.
 
-**Stav 10. 11. 2026:** beží – projekt `elitebiker-ride` (Frankfurt), prihlásenie e-mailom (odkaz alebo kód)
-cez SMTP Shoptetu (info@elitebiker.sk). Aplikácia sa **neprepája** s Instagramom, Facebookom ani Stravou –
+**Stav 10. 11. 2026:** beží, projekt `elitebiker-ride` (Frankfurt), prihlásenie e-mailom (odkaz alebo kód)
+cez SMTP Shoptetu (info@elitebiker.sk). Aplikácia sa **neprepája** s Instagramom, Facebookom ani Stravou -
 Instagram a Facebook si každý zadá do profilu ručne, aby mu kamoši vedeli napísať.
 
 Tajné kľúče (`service_role`, `sb_secret_…`) **nikdy** nepatria do `config.js` ani do GitHubu.
@@ -21,7 +21,7 @@ Tajné kľúče (`service_role`, `sb_secret_…`) **nikdy** nepatria do `config.
 4. **Authentication → URL Configuration**
    - Site URL: `https://elitebikersk.github.io/elitebiker-ride/`
    - Redirect URLs: `https://elitebikersk.github.io/elitebiker-ride/**`
-5. **Authentication → Emails → SMTP Settings**: vlastné SMTP – schránka info@elitebiker.sk na Shoptete
+5. **Authentication → Emails → SMTP Settings**: vlastné SMTP, schránka info@elitebiker.sk na Shoptete
    (server `mbox.myshoptet.com`, port `587`, používateľ = celá e-mailová adresa, heslo k schránke).
    Bez toho Supabase pošle e-mail len členom tímu. Šablóny „Magic link“ a „Confirm sign up“ sú v slovenčine
    (vzor v [`supabase/email-magic-link.html`](supabase/email-magic-link.html)).
@@ -36,7 +36,7 @@ npx supabase functions deploy delete-account --no-verify-jwt
 (Alebo cez web: **Edge Functions → Deploy a new function** a vložiť `supabase/functions-bundled/delete-account/index.ts`.)
 
 ### Počasie a upozornenia
-- Funkcie `weather` (predpoveď pre aplikáciu) a `weather-alerts` (upozornenia) – nasadiť zo `supabase/functions-bundled/`.
+- Funkcie `weather` (predpoveď pre aplikáciu) a `weather-alerts` (upozornenia), nasadiť zo `supabase/functions-bundled/`.
 - Predpoveď: MET Norway (api.met.no, zadarmo aj komerčne, uvádzať zdroj), cache v tabuľke `weather_cache` na 1 h.
 - Kľúče pre upozornenia (VAPID) a `cron_key` sú zašifrované v **Supabase Vault** (`eb_vapid_public`, `eb_vapid_private`, `eb_cron_key`). Funkcia ich číta cez `server_secrets()`, ktorú smie volať len server. Verejný VAPID kľúč je aj v `js/config.js` (`VAPID_PUBLIC`).
 - Každú hodinu (7. minúta) volá pg_cron funkciu `weather-alerts`:
@@ -52,15 +52,15 @@ $$);
 
 ### Upozornenia na žiadosti a pozvánky, katalóg bicyklov
 - Funkcia `notify` (bez JWT, overuje `x-cron-key`) pošle upozornenie do mobilu. Volajú ju triggery v databáze cez `private.push_notify` (pg_net): nová / prijatá žiadosť o priateľstvo, kamoš pridaný cez odkaz, pozvánka na jazdu, niekto sa pridal k mojej jazde. Sebe sa nič neposiela a chyba upozornenia nikdy nezastaví samotnú akciu.
-- Zariadenie dostáva tieto upozornenia, ak má v `push_subscriptions` stĺpec `social = true` (predvolené). Pri každom zariadení sa ukladá `device`, `last_status`, `last_error` a `last_at` – stav posledného odoslania (201 = služba prijala, 404/410 = zariadenie zrušené a zmaže sa).
-- Šifrovanie upozornení (RFC 8291, aes128gcm) a podpis VAPID (RFC 8292) robí `_shared/push.ts` cez WebCrypto – bez knižnice web-push. Kontrola šifrovania priamo na serveri: `notify` s `{"selftest":true,"p256dh":…,"auth":…}` a kľúčom `x-cron-key` vráti zašifrovaný text „selftest-ok“.
-- Vek a mesto (`profiles.age`, `profiles.city`) sa z tabuľky priamo nečítajú – vracia ich `profile_private(ids)` len sebe a priateľom.
+- Zariadenie dostáva tieto upozornenia, ak má v `push_subscriptions` stĺpec `social = true` (predvolené). Pri každom zariadení sa ukladá `device`, `last_status`, `last_error` a `last_at`: stav posledného odoslania (201 = služba prijala, 404/410 = zariadenie zrušené a zmaže sa).
+- Šifrovanie upozornení (RFC 8291, aes128gcm) a podpis VAPID (RFC 8292) robí `_shared/push.ts` cez WebCrypto, bez knižnice web-push. Kontrola šifrovania priamo na serveri: `notify` s `{"selftest":true,"p256dh":…,"auth":…}` a kľúčom `x-cron-key` vráti zašifrovaný text „selftest-ok“.
+- Vek a mesto (`profiles.age`, `profiles.city`) sa z tabuľky priamo nečítajú, vracia ich `profile_private(ids)` len sebe a priateľom.
 - Funkcia `bike-catalog` raz denne (4:41, úloha `eb-ride-bike-catalog`) prejde kategórie *Bicykel pre každého* a *Elektrobicykel* (`ebike = true`) na elitebiker.sk a uloží ID, názov, značku, odkaz a fotku do `catalog_bikes`. Ak načíta menej ako 20 bicyklov, katalóg nemení.
 - Používateľ má najviac 5 bicyklov (`user_bikes`); odkaz a fotku berie server len z katalógu, nie od používateľa.
 
 ## 2. Zapnutie
 
-Vyplň `js/config.js` (Supabase URL a publishable key), ulož do GitHubu – o minútu beží ostrá verzia.
+Vyplň `js/config.js` (Supabase URL a publishable key), ulož do GitHubu, o minútu beží ostrá verzia.
 
 ### Administrácia
 - Stránka `admin.html` (https://elitebikersk.github.io/elitebiker-ride/admin.html).
@@ -86,9 +86,9 @@ insert into private.admins (user_id) values ('<uuid z Authentication → Users>'
 
 ## Čo robí server
 - **Chat** vidia len účastníci jazdy a po skončení jazdy ho každých 15 minút maže úloha `eb-ride-chat-cleanup`.
-- **Jazdu** vidia len pozvaní, verejnú aj bikeri do 30 km (pravidlá prístupu priamo v databáze – nedajú sa obísť z prehliadača).
+- **Jazdu** vidia len pozvaní, verejnú aj bikeri do 30 km (pravidlá prístupu priamo v databáze, nedajú sa obísť z prehliadača).
 - **Fotky** z jázd sú v súkromnom úložisku, profilovky vo verejnom.
-- **Hľadanie** kamošov podľa mena, Instagramu alebo Facebooku (aj bez diakritiky) – funkcia `search_profiles`.
+- **Hľadanie** kamošov podľa mena, Instagramu alebo Facebooku (aj bez diakritiky), funkcia `search_profiles`.
 - **Zmazanie účtu** v Profile zmaže profil, bicykle, jazdy, správy a fotky.
 - **Upozornenia do mobilu**: žiadosti o priateľstvo, pozvánky na jazdy, kto sa pridal k jazde, zlé počasie.
 

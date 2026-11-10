@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     const w = evaluate(series, new Date(r.starts_at).getTime(), new Date(r.ends_at).getTime());
     if (!w || !w.bad.length) continue;
     const reasons = w.bad.join(", ");
-    const summary = `${reasons} · ${w.tmin === w.tmax ? w.tmin : w.tmin + "–" + w.tmax} °C` + (w.pr ? ` · ${w.pr} mm` : "") + (w.gust >= 40 ? ` · nárazy ${w.gust} km/h` : "");
+    const summary = `${reasons} · ${w.tmin === w.tmax ? w.tmin : w.tmin + " až " + w.tmax} °C` + (w.pr ? ` · ${w.pr} mm` : "") + (w.gust >= 40 ? ` · nárazy ${w.gust} km/h` : "");
     const users = (r.ride_participants ?? []).map((p: { user_id: string }) => p.user_id);
     const n = await sendTo(db, users, {
       title: `⚠️ Zlé počasie: ${r.title}`,

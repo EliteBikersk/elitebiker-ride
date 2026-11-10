@@ -94,7 +94,7 @@
       return sb.auth.signInWithPassword({ email: email, password: password }).then(function (r) {
         if (!r.error) return;
         var e;
-        if (/not confirmed/i.test(r.error.message)) { e = new Error("E-mail ešte nie je potvrdený – zadaj kód, ktorý sme ti poslali."); e.code = "unconfirmed"; throw e; }
+        if (/not confirmed/i.test(r.error.message)) { e = new Error("E-mail ešte nie je potvrdený. Zadaj kód, ktorý sme ti poslali."); e.code = "unconfirmed"; throw e; }
         if (/invalid/i.test(r.error.message)) throw new Error("Nesprávny e-mail alebo heslo.");
         fail(r.error, "Prihlásenie sa nepodarilo.");
       });
@@ -102,13 +102,13 @@
     signUp: function (email, password) {
       return sb.auth.signUp({ email: email, password: password, options: { emailRedirectTo: backUrl(), data: { has_password: true } } }).then(function (r) {
         if (r.error) {
-          if (/registered|exists/i.test(r.error.message)) throw new Error("Tento e-mail už má účet – prihlás sa.");
+          if (/registered|exists/i.test(r.error.message)) throw new Error("Tento e-mail už má účet, prihlás sa.");
           if (/rate|security purposes|seconds/i.test(r.error.message)) throw new Error("Príliš veľa pokusov. Skús to o minútu.");
-          if (/password/i.test(r.error.message)) throw new Error("Heslo je príliš slabé – použi aspoň 8 znakov, písmeno aj číslicu.");
+          if (/password/i.test(r.error.message)) throw new Error("Heslo je príliš slabé. Použi aspoň 8 znakov, písmeno aj číslicu.");
           fail(r.error, "Účet sa nepodarilo vytvoriť.");
         }
         if (r.data.session) return { session: true };
-        if (r.data.user && r.data.user.identities && !r.data.user.identities.length) throw new Error("Tento e-mail už má účet – prihlás sa.");
+        if (r.data.user && r.data.user.identities && !r.data.user.identities.length) throw new Error("Tento e-mail už má účet, prihlás sa.");
         return { confirm: true };
       });
     },
@@ -121,7 +121,7 @@
     setPassword: function (pw) {
       return sb.auth.updateUser({ password: pw, data: { has_password: true } }).then(function (r) {
         if (r.error && /different|same/i.test(r.error.message)) throw new Error("Nové heslo musí byť iné ako to staré.");
-        if (r.error && /weak|characters|length/i.test(r.error.message)) throw new Error("Heslo je príliš slabé – použi aspoň 8 znakov, písmeno aj číslicu.");
+        if (r.error && /weak|characters|length/i.test(r.error.message)) throw new Error("Heslo je príliš slabé. Použi aspoň 8 znakov, písmeno aj číslicu.");
         if (r.error && /reauthenticat|recent/i.test(r.error.message)) throw new Error("Z bezpečnostných dôvodov sa odhlás a prihlás kódom z e-mailu, potom heslo nastav znova.");
         fail(r.error, "Heslo sa nepodarilo uložiť."); if (r.data && r.data.user) me = r.data.user;
       });

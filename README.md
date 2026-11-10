@@ -1,4 +1,4 @@
-# EliteBiker Ride – nejazdi sám
+# EliteBiker Ride · Nejazdi sám
 
 Aplikácia od [EliteBiker](https://www.elitebiker.sk/) na spoločné jazdy s partiou.
 Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pridaj sa k nim, keď idú oni.
@@ -10,26 +10,26 @@ Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pri
 - **Jazdy**: typ, deň a čas, **stretko na mape so špendlikom** (posúvaš mapu ako vo Wolte, vyhľadávanie adries, moja poloha),
   **trasa nakreslená ťukaním na mapu** s výpočtom km, tempo, poznámka. Navigácia na stretko cez Google Mapy / Waze.
 - **Zopakuj obvyklú jazdu** jedným ťukom.
-- **Kto jazdu uvidí?** – 🌍 **verejná** (každý biker do 30 km od stretka sa môže pridať), 👥 **pre partiu** (pozvaní môžu pozvať ďalších)
+- **Kto jazdu uvidí?** 🌍 **verejná** (každý biker do 30 km od stretka sa môže pridať), 👥 **pre partiu** (pozvaní môžu pozvať ďalších)
   alebo 🔒 **len pre vybraných** (ďalej sa nedá poslať). Skratky ako na Snapchate, pozývanie odkazom aj ľudí bez appky.
-- **Verejné jazdy v okolí** – podľa mesta v profile (do 30 km), presná poloha sa nezisťuje.
-- **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú – pred nahraním sa dajú orezať (posun, priblíženie, otočenie, pomer 4:5, 1:1, 9:16), profilovka do kruhu.
-- **Zdieľanie s EliteBiker dizajnom** (ako na Strave): fotka z jazdy s číslami (km, stúpanie, čas), trasou a logom – štýly Štatistiky, Trasa, Partia a priehľadná Nálepka, formát Príbeh 9:16 alebo Príspevok 4:5. Obrázok sa kreslí v telefóne.
-- **Moje bicykle**: výber z ponuky elitebiker.sk – bicykle aj elektrobicykle (aktualizuje sa každý deň) – alebo vlastný názov; kamoši ich vidia pri mene.
+- **Verejné jazdy v okolí**: podľa mesta v profile (do 30 km), presná poloha sa nezisťuje.
+- **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú, pred nahraním sa dajú orezať (posun, priblíženie, otočenie, pomer 4:5, 1:1, 9:16), profilovka do kruhu.
+- **Zdieľanie s EliteBiker dizajnom** (ako na Strave): fotka z jazdy s číslami (km, stúpanie, čas), trasou a logom, štýly Štatistiky, Trasa, Partia a priehľadná Nálepka, formát Príbeh 9:16 alebo Príspevok 4:5. Obrázok sa kreslí v telefóne.
+- **Moje bicykle**: výber z ponuky elitebiker.sk, bicykle aj elektrobicykle (aktualizuje sa každý deň), alebo vlastný názov; kamoši ich vidia pri mene.
 - **Profil kamoša**: klik na priateľa ukáže vek, mesto, kontakt, na čom jazdí, bicykle a jeho najbližšiu jazdu. Vek a mesto vidia len priatelia.
-- **Nová jazda podľa bicykla**: cesta a gravel – tempo a trasa; horský – farby trailov (zelená, modrá, červená, čierna); e-bike a dirt bez nich. Predvolene môžu účastníci pozvať ďalších, zaškrtnutím „len pozvaní“.
-- **Upozornenia do mobilu**: žiadosť o priateľstvo, prijatie, pozvánka na jazdu, kto sa pridal k jazde, zlé počasie. V Profile stav zariadení, skúšobné upozornenie a návod, ako pridať appku na plochu (iPhone, Android).
-- **EliteBiker Klub**: body počíta server, odmeny (kontrola a servis zdarma…), história bonusov, zľavy pre členov, odkazy do e-shopu.
+- **Nová jazda podľa bicykla**: pri ceste a gravel tempo a trasa, pri horskom farby trailov (zelená, modrá, červená, čierna), e-bike a dirt bez nich. Predvolene môžu účastníci pozvať ďalších, zaškrtnutím „len pozvaní“.
+- **Upozornenia do mobilu**: žiadosť o priateľstvo, prijatie, pozvánka na jazdu, kto sa pridal k jazde, zlé počasie. V Profile jedno tlačidlo na zapnutie a skúšobné upozornenie. Na iPhone appka ukáže, ako si ju pridať na plochu, a po otvorení z plochy sa raz opýta na upozornenia.
+- **EliteBiker Klub**: pripravujeme (v appke zatiaľ len ukážka). Body už počíta server, odmeny a zľavy prídu neskôr.
 - **Administrácia** (`admin.html`) s dvojstupňovým overením: používatelia, body, vydanie odmeny, verejné jazdy, záznam zmien.
 - **Ochrana**: RLS + stĺpcové práva, súkromné profily, limity proti zneužitiu, tajné kľúče vo Vaulte, CSP, vlastné písmo, zmazanie účtu a údajov.
-- Responzívne (mobil, tablet, počítač), dá sa pridať na plochu telefónu.
+- Responzívne (mobil, tablet, počítač), dá sa pridať na plochu telefónu s ikonkou EliteBiker.
 
 ## Technicky
 - Statická stránka (HTML/CSS/JS bez buildu) na GitHub Pages.
-- Server: **Supabase** – PostgreSQL s pravidlami prístupu (RLS), prihlásenie, realtime chat, úložisko, Edge Functions.
+- Server: **Supabase**: PostgreSQL s pravidlami prístupu (RLS), prihlásenie, realtime chat, úložisko, Edge Functions.
 - Mapy: Leaflet + OpenStreetMap, adresy cez Nominatim.
-- `supabase/schema.sql` – databáza, `supabase/functions/` – serverové funkcie (zmazanie účtu, počasie, upozornenia `notify`, katalóg bicyklov `bike-catalog`).
-- `js/crop.js` – orezanie fotky pred nahraním.
+- `supabase/schema.sql`: databáza, `supabase/functions/`: serverové funkcie (zmazanie účtu, počasie, upozornenia `notify`, katalóg bicyklov `bike-catalog`).
+- `js/crop.js`: orezanie fotky pred nahraním.
 - Bez vyplneného `js/config.js` beží **skúšobný režim** s vymyslenými údajmi (`js/mock.js`).
 
 ## Zapojenie

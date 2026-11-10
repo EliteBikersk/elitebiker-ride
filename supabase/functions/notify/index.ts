@@ -27,16 +27,16 @@ Deno.serve(async (req) => {
       p = { title: "👋 Nová žiadosť o priateľstvo", body: `${actor} si ťa chce pridať do partie. Ťukni a potvrď.`, url: APP + "#partia", tag: "fr-" + user };
       break;
     case "friend_accepted":
-      p = { title: `🤝 ${first} prijal tvoju žiadosť`, body: `S ${actor} ste odteraz v partii – môžete si posielať jazdy.`, url: APP + "#partia", tag: "fa-" + user };
+      p = { title: `🤝 ${first} prijal tvoju žiadosť`, body: `S ${actor} ste odteraz v partii. Môžete si posielať jazdy.`, url: APP + "#partia", tag: "fa-" + user };
       break;
     case "friend_joined":
       p = { title: `🎉 ${first} sa pridal cez tvoj odkaz`, body: `${actor} je v EliteBiker Ride a v tvojej partii.`, url: APP + "#partia", tag: "fj-" + user };
       break;
     case "ride_invite":
-      if (ride) p = { title: `🚴 ${first} ťa volá na jazdu`, body: `${title}${at ? " – " + at : ""}. Ťukni a daj vedieť, či ideš.`, url: APP + "#jazda-" + ride, tag: "ri-" + ride };
+      if (ride) p = { title: `🚴 ${first} ťa volá na jazdu`, body: `${title}${at ? ", " + at : ""}. Ťukni a daj vedieť, či ideš.`, url: APP + "#jazda-" + ride, tag: "ri-" + ride };
       break;
     case "ride_join":
-      if (ride) p = { title: `✅ ${first} ide s tebou`, body: `${title}${at ? " – " + at : ""}`, url: APP + "#jazda-" + ride, tag: "rj-" + ride + "-" + first };
+      if (ride) p = { title: `✅ ${first} ide s tebou`, body: `${title}${at ? ", " + at : ""}`, url: APP + "#jazda-" + ride, tag: "rj-" + ride + "-" + first };
       break;
   }
   if (!p) return json(req, { error: "bad kind" }, 400);

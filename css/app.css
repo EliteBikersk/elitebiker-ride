@@ -949,3 +949,55 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .ebchip.on{background:var(--b)!important;color:#fff!important;border-color:var(--b)!important}
 .ebchip.on small{color:rgba(255,255,255,.8)}
 #notif{scroll-margin-top:84px}
+
+/* ---------- Klub: pripravujeme ---------- */
+.soonbox{position:relative;text-align:center;background:linear-gradient(160deg,#1b46e5,#0b1233);color:#fff;border-radius:22px;padding:30px 20px 22px;overflow:hidden}
+.soonbox::after{content:"";position:absolute;right:-60px;top:-60px;width:200px;height:200px;border-radius:50%;border:2px solid rgba(255,255,255,.1)}
+.soonchip{display:inline-block;background:#fff;color:var(--b);font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase;border-radius:999px;padding:5px 12px}
+.soonic{font-size:52px;margin:14px 0 6px}
+.soonbox h2{color:#fff;font-size:21px;margin:0 0 8px}
+.soonbox p{color:rgba(255,255,255,.85);font-size:14px;line-height:1.55;margin:0 auto;max-width:420px}
+.soonbox .small-note{color:rgba(255,255,255,.7)}
+.soonlist{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+.soonlist span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:600}
+/* ---------- upozornenia: otázka a zakázané ---------- */
+.askp{text-align:center;max-width:440px;margin:0 auto}
+.askic{font-size:54px;margin:18px 0 8px}
+.askp h2{font-size:21px;margin:0 0 8px;color:var(--ink)}
+.askp p{color:var(--tx);font-size:14.5px;line-height:1.55;margin:0 0 18px}
+.askp .howone{background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:12px 14px;text-align:left;font-size:14px}
+.nrow{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--ln)}
+.nrow img{width:40px;height:40px;border-radius:10px;box-shadow:0 1px 4px rgba(17,19,26,.15)}
+.nrow b{display:block;font-size:14px;color:var(--ink)}
+.nrow small{font-size:12.5px;color:var(--mu)}
+.ncard .btn svg{width:16px;height:16px}
+/* ---------- pridanie na plochu ---------- */
+.inst{max-width:620px;margin:0 auto}
+.ihero{display:flex;gap:14px;align-items:center;margin:4px 0 18px}
+.iapp{width:64px;height:64px;border-radius:15px;box-shadow:0 4px 14px rgba(17,19,26,.18);flex:0 0 auto}
+.ihero b{display:block;font-size:17px;color:var(--ink)}
+.ihero small{display:block;font-size:13.5px;color:var(--mu);line-height:1.45;margin-top:3px}
+.isteps{display:grid;gap:10px}
+.ist{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--ln);border-radius:16px;padding:12px 14px}
+.ist .n{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--b);color:#fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center}
+.ist .ico{flex:0 0 auto;width:44px;height:44px;border-radius:12px;background:var(--lb);color:var(--b);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ist .ico svg{width:24px;height:24px}
+.ist .ico img{width:44px;height:44px}
+.ist b{display:block;font-size:15px;color:var(--ink)}
+.ist small{display:block;font-size:12.5px;color:var(--mu);margin-top:1px}
+@media (min-width:560px){
+  .isteps{grid-template-columns:repeat(3,1fr)}
+  .ist{flex-direction:column;text-align:center;padding:18px 12px}
+  .ist .ico{width:56px;height:56px}
+  .ist .ico img{width:56px;height:56px}
+}
+.inst .btn svg{width:18px;height:18px}
+.iarrow{position:fixed;z-index:5;color:var(--b);animation:ibounce 1.2s ease-in-out infinite;pointer-events:none}
+.iarrow svg{display:block}
+.iarrow.down{left:50%;bottom:calc(6px + env(safe-area-inset-bottom));margin-left:-13px}
+.iarrow.down svg{transform:rotate(-90deg)}
+.iarrow.up{right:16px;top:calc(6px + env(safe-area-inset-top))}
+.iarrow.up svg{transform:rotate(135deg)}
+@keyframes ibounce{0%,100%{translate:0 0}50%{translate:0 6px}}
+.iarrow.up{animation-name:ibounceup}
+@keyframes ibounceup{0%,100%{translate:0 0}50%{translate:4px -4px}}
