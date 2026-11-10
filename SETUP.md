@@ -50,6 +50,12 @@ $$);
 - Pravidlá „zlého počasia“ (počas jazdy, kontrola 24 h vopred, jedno upozornenie na jazdu): búrka, sneženie, dážď so snehom, dážď ≥ 1 mm (silný ≥ 5 mm), vietor ≥ 36 km/h alebo nárazy ≥ 54 km/h, ≥ 33 °C.
 - iPhone: upozornenia fungujú len v appke pridanej na plochu (iOS 16.4+).
 
+### Upozornenia na žiadosti a pozvánky, katalóg bicyklov
+- Funkcia `notify` (bez JWT, overuje `x-cron-key`) pošle upozornenie do mobilu. Volajú ju triggery v databáze cez `private.push_notify` (pg_net): nová / prijatá žiadosť o priateľstvo, kamoš pridaný cez odkaz, pozvánka na jazdu, niekto sa pridal k mojej jazde. Sebe sa nič neposiela a chyba upozornenia nikdy nezastaví samotnú akciu.
+- Zariadenie dostáva tieto upozornenia, ak má v `push_subscriptions` stĺpec `social = true` (predvolené).
+- Funkcia `bike-catalog` raz denne (4:41, úloha `eb-ride-bike-catalog`) prejde kategóriu *Bicykel pre každého* na elitebiker.sk a uloží ID, názov, značku, odkaz a fotku do `catalog_bikes`. Ak načíta menej ako 20 bicyklov, katalóg nemení.
+- Používateľ má najviac 5 bicyklov (`user_bikes`); odkaz a fotku berie server len z katalógu, nie od používateľa.
+
 ## 2. Zapnutie
 
 Vyplň `js/config.js` (Supabase URL a publishable key), ulož do GitHubu – o minútu beží ostrá verzia.
@@ -81,7 +87,8 @@ insert into private.admins (user_id) values ('<uuid z Authentication → Users>'
 - **Jazdu** vidia len pozvaní, verejnú aj bikeri do 30 km (pravidlá prístupu priamo v databáze – nedajú sa obísť z prehliadača).
 - **Fotky** z jázd sú v súkromnom úložisku, profilovky vo verejnom.
 - **Hľadanie** kamošov podľa mena, Instagramu alebo Facebooku (aj bez diakritiky) – funkcia `search_profiles`.
-- **Zmazanie účtu** v Profile zmaže profil, jazdy, správy a fotky.
+- **Zmazanie účtu** v Profile zmaže profil, bicykle, jazdy, správy a fotky.
+- **Upozornenia do mobilu**: žiadosti o priateľstvo, pozvánky na jazdy, kto sa pridal k jazde, zlé počasie.
 
 ## Prečo nie Instagram / Strava prihlásenie (10. 11. 2026)
 - **Instagram:** nové Meta aplikácie od konca októbra 2026 nedostanú „Instagram login“, len Unified login cez Facebook

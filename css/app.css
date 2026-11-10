@@ -824,3 +824,67 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 /* skratka Verejnosť */
 .scs .pubsc.on{border-color:#16a34a;background:#16a34a;color:#fff}
 .scs .pubsc.on small{color:#dcfce7}
+
+/* ---------- orezanie fotky ---------- */
+.crop-ov{position:absolute;inset:0;z-index:80;display:flex;flex-direction:column;background:#0d1020;color:#fff}
+.crop-ov .sh-top{position:relative;background:#0d1020}
+.crop-ov .sh-top b{color:#fff}
+.crop-ov .icb{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.18);color:#fff}
+.crop-n{font-size:13px;font-weight:700;color:rgba(255,255,255,.7)}
+.crop-stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:12px 16px;overflow:hidden}
+.crop-box{position:relative;touch-action:none;cursor:grab;overflow:hidden;border-radius:4px;background:#000;user-select:none;-webkit-user-select:none}
+.crop-box:active{cursor:grabbing}
+.crop-box canvas{display:block;width:100%;height:100%}
+.crop-grid{position:absolute;inset:0;pointer-events:none;border:2px solid rgba(255,255,255,.9);border-radius:4px;
+  background:linear-gradient(90deg,transparent calc(33.33% - .5px),rgba(255,255,255,.35) calc(33.33% - .5px) calc(33.33% + .5px),transparent calc(33.33% + .5px) calc(66.66% - .5px),rgba(255,255,255,.35) calc(66.66% - .5px) calc(66.66% + .5px),transparent calc(66.66% + .5px)),
+  linear-gradient(180deg,transparent calc(33.33% - .5px),rgba(255,255,255,.35) calc(33.33% - .5px) calc(33.33% + .5px),transparent calc(33.33% + .5px) calc(66.66% - .5px),rgba(255,255,255,.35) calc(66.66% - .5px) calc(66.66% + .5px),transparent calc(66.66% + .5px))}
+.crop-box.round .crop-grid{border-radius:50%;background:none;box-shadow:0 0 0 999px rgba(13,16,32,.6)}
+.crop-ctl{padding:4px 16px calc(16px + env(safe-area-inset-bottom));max-width:560px;width:100%;margin:0 auto}
+.crop-asp{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.crop-asp button{border:1.5px solid rgba(255,255,255,.24);background:none;color:#fff;border-radius:999px;padding:7px 15px;font-weight:700;font-size:13px}
+.crop-asp button.on{background:#fff;color:var(--ink);border-color:#fff}
+.crop-row{display:flex;align-items:center;gap:14px;margin-top:14px}
+.crop-rot{flex:0 0 auto;width:40px;height:40px;border-radius:999px;border:1.5px solid rgba(255,255,255,.24);background:none;color:#fff;display:flex;align-items:center;justify-content:center}
+.crop-row input{flex:1;min-width:0;accent-color:#fff}
+.crop-ov .btn.gh{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.22)}
+.crop-ov .info{color:rgba(255,255,255,.6)}
+
+/* ---------- bicykle ---------- */
+.bkl{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:12px;font-weight:600;color:var(--b);min-width:0}
+.bkl svg{flex:0 0 auto}
+.bkl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bkimg{flex:0 0 auto;width:56px;height:42px;border-radius:10px;background:#fff;border:1px solid var(--ln);display:flex;align-items:center;justify-content:center;overflow:hidden;color:var(--li)}
+.bkimg img{width:100%;height:100%;object-fit:contain}
+.rowbtn{width:100%;text-align:left;background:none;cursor:pointer}
+.rowbtn:last-child{border-bottom:0}
+.row .grow b.wrap2{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;font-size:14px}
+.rowbtn .chip{flex:0 0 auto}
+.opts small.cnt{font-size:11px;color:var(--li);font-weight:600}
+.bkown{display:flex;gap:8px;align-items:center}
+.bkown .inp{flex:1;min-width:0;margin:0}
+.bkown .btn{flex:0 0 auto}
+/* karta: zapni upozornenia */
+.pushcard{display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,#eef2ff,#fff 80%);border:1px solid var(--lbl);border-radius:16px;padding:14px;margin-top:14px}
+.pushcard .pi{font-size:24px;line-height:1.1}
+.pushcard .grow{flex:1;min-width:0}
+.pushcard b{display:block;color:var(--ink);font-size:14.5px}
+.pushcard small{display:block;color:var(--mu);font-size:12.5px;line-height:1.45;margin-top:2px}
+/* ---------- EliteBiker dizajn na zdieľanie ---------- */
+.dprev{display:flex;align-items:center;justify-content:center;margin:0 auto;border-radius:18px;overflow:hidden;background:var(--sf);border:1px solid var(--ln);box-shadow:0 14px 40px rgba(17,19,26,.18)}
+.dprev.f-story{width:min(100%,250px);aspect-ratio:9/16}
+.dprev.f-post{width:min(100%,300px);aspect-ratio:4/5}
+.dprev.f-stk{width:min(100%,300px);aspect-ratio:1/1;background:repeating-conic-gradient(#2b3040 0 25%,#222634 0 50%) 50%/22px 22px;border-color:#2b3040}
+.dprev img{display:block;width:100%;height:100%;object-fit:contain}
+.dprev .loading{font-size:13px;color:var(--mu)}
+.dprev.f-stk .loading{color:#c9cede}
+@supports not (aspect-ratio:1/1){.dprev.f-story{height:444px}.dprev.f-post{height:375px}.dprev.f-stk{height:300px}}
+@media (max-height:700px){.dprev.f-story{width:min(100%,190px)}.dprev.f-post{width:min(100%,230px)}.dprev.f-stk{width:min(100%,230px)}}
+.dseg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:var(--sf);border:1px solid var(--ln);border-radius:14px;padding:4px;margin-top:16px}
+.dseg button{border-radius:10px;padding:9px 2px;font-weight:700;font-size:12.5px;color:var(--mu);background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dseg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(17,19,26,.12)}
+.dfmt{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+.dfmt button{border:1.5px solid var(--ln);background:#fff;border-radius:999px;padding:7px 14px;font-size:13px;font-weight:700;color:var(--tx)}
+.dfmt button.on{border-color:var(--b);background:var(--lb);color:var(--b)}
+.dfmt button[disabled]{opacity:.4}
+.bgs.f-post button,.bgs.f-post .bgadd{height:68px}
+.bgadd{flex:0 0 auto;width:54px;height:96px;border-radius:10px;border:2px dashed #c9d3fb;background:var(--lb);color:var(--b);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:700;cursor:pointer}

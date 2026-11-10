@@ -10,6 +10,7 @@
   });
   var me = null;
   var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,age,city,bike_types";
+  var BIKE_COLS = "id,user_id,name,catalog_id,url,image,created_at", catP = null;
 
   // naše hlásenia zo servera (limity, kontroly) ukážeme priamo, ostatné nahradíme zrozumiteľnou vetou
   function fail(error, msg) {
@@ -156,6 +157,21 @@
       if (q.length < 3) return Promise.resolve([]);
       return sb.rpc("search_profiles", { q: q }).then(function (r) { fail(r.error, "Hľadanie zlyhalo."); return r.data || []; });
     },
+
+    /* ---------- bicykle: katalóg z elitebiker.sk + vlastné ---------- */
+    catalog: function () {
+      if (!catP) catP = sb.from("catalog_bikes").select("id,name,brand,url,image").order("name").limit(3000).then(function (r) { fail(r.error, "Ponuku bicyklov sa nepodarilo načítať."); return r.data || []; });
+      return catP.catch(function (e) { catP = null; throw e; });
+    },
+    bikes: function (ids) {
+      if (!ids.length) return Promise.resolve([]);
+      return sb.from("user_bikes").select(BIKE_COLS).in("user_id", ids).order("created_at").then(function (r) { return r.error ? [] : r.data; });
+    },
+    addBike: function (b) {
+      return sb.from("user_bikes").insert({ name: b.catalog_id ? "" : String(b.name || "").trim(), catalog_id: b.catalog_id || null }).select(BIKE_COLS).single()
+        .then(function (r) { fail(r.error, "Bicykel sa nepodarilo pridať."); return r.data; });
+    },
+    deleteBike: function (id) { return sb.from("user_bikes").delete().eq("id", id).then(function (r) { fail(r.error); }); },
 
     /* ---------- poloha pre verejné jazdy (ukladá sa len približne, na ~1 km) ---------- */
     location: function () {

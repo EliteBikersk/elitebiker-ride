@@ -13,7 +13,10 @@ Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pri
 - **Kto jazdu uvidí?** – 🌍 **verejná** (každý biker do 30 km od stretka sa môže pridať), 👥 **pre partiu** (pozvaní môžu pozvať ďalších)
   alebo 🔒 **len pre vybraných** (ďalej sa nedá poslať). Skratky ako na Snapchate, pozývanie odkazom aj ľudí bez appky.
 - **Verejné jazdy v okolí** – podľa mesta v profile (do 30 km), presná poloha sa nezisťuje.
-- **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú.
+- **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú – pred nahraním sa dajú orezať (posun, priblíženie, otočenie, pomer 4:5, 1:1, 9:16), profilovka do kruhu.
+- **Zdieľanie s EliteBiker dizajnom** (ako na Strave): fotka z jazdy s číslami (km, stúpanie, čas), trasou a logom – štýly Štatistiky, Trasa, Partia a priehľadná Nálepka, formát Príbeh 9:16 alebo Príspevok 4:5. Obrázok sa kreslí v telefóne.
+- **Moje bicykle**: výber z ponuky elitebiker.sk (aktualizuje sa každý deň) alebo vlastný názov; kamoši ich vidia pri mene.
+- **Upozornenia do mobilu**: žiadosť o priateľstvo, prijatie, pozvánka na jazdu, kto sa pridal k jazde, zlé počasie.
 - **EliteBiker Klub**: body počíta server, odmeny (kontrola a servis zdarma…), história bonusov, zľavy pre členov, odkazy do e-shopu.
 - **Administrácia** (`admin.html`) s dvojstupňovým overením: používatelia, body, vydanie odmeny, verejné jazdy, záznam zmien.
 - **Ochrana**: RLS + stĺpcové práva, súkromné profily, limity proti zneužitiu, tajné kľúče vo Vaulte, CSP, vlastné písmo, zmazanie účtu a údajov.
@@ -23,7 +26,8 @@ Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pri
 - Statická stránka (HTML/CSS/JS bez buildu) na GitHub Pages.
 - Server: **Supabase** – PostgreSQL s pravidlami prístupu (RLS), prihlásenie, realtime chat, úložisko, Edge Functions.
 - Mapy: Leaflet + OpenStreetMap, adresy cez Nominatim.
-- `supabase/schema.sql` – databáza, `supabase/functions/delete-account` – zmazanie účtu.
+- `supabase/schema.sql` – databáza, `supabase/functions/` – serverové funkcie (zmazanie účtu, počasie, upozornenia `notify`, katalóg bicyklov `bike-catalog`).
+- `js/crop.js` – orezanie fotky pred nahraním.
 - Bez vyplneného `js/config.js` beží **skúšobný režim** s vymyslenými údajmi (`js/mock.js`).
 
 ## Zapojenie

@@ -1,6 +1,6 @@
 // Jeden súbor na nasadenie cez Supabase (pomocné funkcie sú vložené priamo)
-import webpush from "npm:web-push@3.6.7";
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2";
+import webpush from "npm:web-push@3.6.7";
 // Spoločné pomocné funkcie pre serverové funkcie EliteBiker Ride
 
 const ALLOWED = (Deno.env.get("ALLOWED_ORIGINS") ??
@@ -147,27 +147,50 @@ export function evaluate(series: Pt[], start: number, end: number) {
   return { tmin: Math.round(tmin), tmax: Math.round(tmax), pr: Math.round(pr * 10) / 10, pop, wind: Math.round(wind * 3.6), gust: Math.round(gust * 3.6), sym, label: symLabel(sym), bad };
 }
 function pops(pts: Pt[]) { return pts.every((p) => p.pop == null); }
-// Upozornenia na zlé počasie (spúšťa pg_cron každú hodinu) + skúšobné upozornenie pre prihláseného.
+// Spoločné pre upozornenia do mobilu (web push): tajné kľúče z Vaultu, odoslanie, čas jazdy po slovensky.
 
-const APP = "https://elitebikersk.github.io/elitebiker-ride/";
+export const APP = "https://elitebikersk.github.io/elitebiker-ride/";
 const DN = ["nedeľa", "pondelok", "utorok", "streda", "štvrtok", "piatok", "sobota"];
 
-function when(iso: string) {
+export function when(iso: string) {
   const d = new Date(iso), tz = "Europe/Bratislava";
   const day = new Date(d.toLocaleString("en-US", { timeZone: tz }));
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: tz }));
   const diff = Math.round((new Date(day.toDateString()).getTime() - new Date(now.toDateString()).getTime()) / 864e5);
   const hm = d.toLocaleTimeString("sk-SK", { hour: "2-digit", minute: "2-digit", timeZone: tz });
-  return (diff === 0 ? "dnes" : diff === 1 ? "zajtra" : DN[day.getDay()]) + " o " + hm;
+  const dm = d.toLocaleDateString("sk-SK", { day: "numeric", month: "numeric", timeZone: tz });
+  return (diff === 0 ? "dnes" : diff === 1 ? "zajtra" : diff > 1 && diff < 7 ? DN[day.getDay()] : DN[day.getDay()] + " " + dm) + " o " + hm;
 }
 
-async function sendTo(db: ReturnType<typeof admin>, userIds: string[], payload: Record<string, unknown>) {
+// tajné kľúče sú zašifrované v Supabase Vault (čítať ich môže len server)
+export async function secrets(db: SupabaseClient): Promise<Record<string, string>> {
+  const { data, error } = await db.rpc("server_secrets");
+  if (!error && data && typeof data === "object") return data as Record<string, string>;
+  return {};
+}
+
+// porovnanie bez úniku informácie cez čas odpovede
+export function sameSecret(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
+}
+
+export function initPush(S: Record<string, string>) {
+  if (!S.vapid_public || !S.vapid_private) return false;
+  webpush.setVapidDetails(APP, S.vapid_public, S.vapid_private);
+  return true;
+}
+
+// pošle upozornenie na všetky zariadenia daných ľudí (len tie, ktoré majú zapnutý daný druh)
+export async function sendTo(db: SupabaseClient, userIds: string[], payload: Record<string, unknown>, kind: "weather" | "social") {
   if (!userIds.length) return 0;
-  const { data: subs } = await db.from("push_subscriptions").select("endpoint, p256dh, auth, user_id").in("user_id", userIds).eq("weather", true);
+  const { data: subs } = await db.from("push_subscriptions").select("endpoint, p256dh, auth, user_id").in("user_id", userIds).eq(kind, true);
   let ok = 0;
   for (const s of subs ?? []) {
     try {
-      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 6 * 3600, urgency: "high" });
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload), { TTL: 12 * 3600, urgency: "high" });
       ok++;
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode;
@@ -176,36 +199,20 @@ async function sendTo(db: ReturnType<typeof admin>, userIds: string[], payload: 
   }
   return ok;
 }
-
-// tajné kľúče sú zašifrované v Supabase Vault (čítať ich môže len server)
-async function secrets(db: ReturnType<typeof admin>): Promise<Record<string, string>> {
-  const { data, error } = await db.rpc("server_secrets");
-  if (!error && data && typeof data === "object" && Object.keys(data).length) return data as Record<string, string>;
-  const { data: old } = await db.from("app_secrets").select("name, value");   // pred presunom do Vaultu
-  return Object.fromEntries((old ?? []).map((x: { name: string; value: string }) => [x.name, x.value]));
-}
-
-// porovnanie bez úniku informácie cez čas odpovede
-function sameSecret(a: string, b: string): boolean {
-  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
-  let diff = x.length ^ y.length;
-  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
-  return diff === 0;
-}
+// Upozornenia na zlé počasie (spúšťa pg_cron každú hodinu) + skúšobné upozornenie pre prihláseného.
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req) });
   const db = admin();
   const S = await secrets(db);
-  if (!S.vapid_public || !S.vapid_private) return json(req, { error: "Upozornenia nie sú nastavené." }, 500);
-  webpush.setVapidDetails(APP, S.vapid_public, S.vapid_private);
+  if (!initPush(S)) return json(req, { error: "Upozornenia nie sú nastavené." }, 500);
   const body = await readJson(req);
 
   // skúšobné upozornenie pre prihláseného
   if (body.test) {
     const user = await currentUser(req);
     if (!user) return json(req, { error: "Nie si prihlásený." }, 401);
-    const n = await sendTo(db, [user.id], { title: "EliteBiker Ride 🚴", body: "Upozornenia fungujú. Ak bude na tvoju jazdu zlé počasie, dáme ti vedieť.", url: APP, tag: "test" });
+    const n = await sendTo(db, [user.id], { title: "EliteBiker Ride 🚴", body: "Upozornenia fungujú. Dáme ti vedieť o žiadostiach, pozvánkach na jazdy aj o zlom počasí.", url: APP, tag: "test" }, "social");
     return json(req, { sent: n });
   }
 
@@ -230,7 +237,7 @@ Deno.serve(async (req) => {
       title: `⚠️ Zlé počasie: ${r.title}`,
       body: `${when(r.starts_at)} hlásia ${summary}. Dohodnite sa v chate, či idete.`,
       url: APP + "#jazda-" + r.id, tag: "pocasie-" + r.id,
-    });
+    }, "weather");
     await db.from("ride_weather_alerts").upsert({ ride_id: r.id, summary });
     report.push({ ride: r.id, summary, sent: n });
   }

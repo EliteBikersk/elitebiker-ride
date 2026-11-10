@@ -56,8 +56,19 @@
       { id: "s1", name: "MTB partia", emoji: "🏔️", members: ["u-adam", "u-peto", "u-marek"] },
       { id: "s2", name: "Gravel pohodári", emoji: "☕", members: ["u-lucia", "u-jana"] }], rides: rides, me: null };
   }
+  // ukážka ponuky bicyklov (naostro sa načíta z elitebiker.sk)
+  var CAT = [[1, "Marin Rift Zone 2 29\"", "Marin"], [2, "Marin Alpine Trail E2", "Marin"], [3, "Marin San Quentin 3", "Marin"], [4, "Marin Gestalt X10", "Marin"], [5, "Marin Wildcat Trail 3", "Marin"],
+    [6, "Marin Bobcat Trail 4 29\"", "Marin"], [7, "Marin Nicasio 2", "Marin"], [8, "Haro Shift R7", "Haro"], [9, "Haro Downtown 20\"", "Haro"], [10, "Transition Smuggler Carbon GX", "Transition"],
+    [11, "Transition Spire Alloy", "Transition"], [12, "TIME ADHX 45", "TIME"], [13, "GT Aggressor 27,5\" Expert", "GT"], [14, "Chromag Darco", "Chromag"], [15, "STORM Barcelona 28\"", "STORM"], [16, "CANULL Air 16\"", "CANULL"]]
+    .map(function (x) { return { id: x[0], name: x[1], brand: x[2], url: "https://www.elitebiker.sk/", image: null }; });
+  function seedBikes() {
+    return [["u-adam", 1], ["u-peto", 10], ["u-lucia", 4], ["u-tomas", 12], ["u-jana", 2], ["u-marek", 8], ["u-zuza", 5]].map(function (x, i) {
+      var c = CAT.filter(function (b) { return b.id === x[1]; })[0];
+      return { id: "b" + i, user_id: x[0], name: c.name, catalog_id: c.id, url: c.url, image: null, created_at: new Date(Date.now() - (30 - i) * 864e5).toISOString() };
+    });
+  }
   var D = null;
-  function load() { try { D = JSON.parse(localStorage.getItem(KEY)); } catch (e) { D = null; } if (!D) D = seed(); }
+  function load() { try { D = JSON.parse(localStorage.getItem(KEY)); } catch (e) { D = null; } if (!D) D = seed(); if (!D.bikes) D.bikes = seedBikes(); }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { /* bez úložiska */ } }
   function wait(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 120); }); }
   function prof(id) { if (id === "me") return D.me; for (var i = 0; i < D.profiles.length; i++) if (D.profiles[i].id === id) return D.profiles[i]; return null; }
@@ -120,6 +131,17 @@
       return wait(D.profiles.filter(function (p) { return q.length > 2 && (n(p.display_name).indexOf(q) > -1 || n(p.ig_username).indexOf(q) > -1 || n(p.fb_name).indexOf(q) > -1); })
         .slice(0, 10).map(function (p) { return { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url, city: p.city, ig_username: p.ig_username }; }));
     },
+    catalog: function () { return wait(copy(CAT)); },
+    bikes: function (ids) { var m = {}; ids.forEach(function (i) { m[i] = 1; }); return wait(copy(D.bikes.filter(function (b) { return m[b.user_id]; }))); },
+    addBike: function (b) {
+      var mine = D.bikes.filter(function (x) { return x.user_id === "me"; }), c = b.catalog_id ? CAT.filter(function (x) { return x.id === b.catalog_id; })[0] : null;
+      if (mine.length >= 5) return Promise.reject(new Error("Môžeš mať najviac 5 bicyklov."));
+      var name = c ? c.name : String(b.name || "").trim().replace(/\s+/g, " ").slice(0, 160);
+      if (name.length < 2) return Promise.reject(new Error("Napíš názov bicykla."));
+      var n = { id: "b" + Date.now(), user_id: "me", name: name, catalog_id: c ? c.id : null, url: c ? c.url : null, image: c ? c.image : null, created_at: new Date().toISOString() };
+      D.bikes.push(n); save(); return wait(copy(n));
+    },
+    deleteBike: function (id) { D.bikes = D.bikes.filter(function (b) { return !(b.id === id && b.user_id === "me"); }); save(); return wait(); },
     // v skúšobnom režime bez internetu: poloha = Považská Bystrica, ak je v profile mesto
     location: function () { return wait(D.loc ? copy(D.loc) : D.me && D.me.city ? { lat: 49.12, lng: 18.42, label: D.me.city } : null); },
     setLocation: function (l) { D.loc = { lat: Math.round(l.lat * 100) / 100, lng: Math.round(l.lng * 100) / 100, label: l.label || null }; changed(); return wait(copy(D.loc)); },
