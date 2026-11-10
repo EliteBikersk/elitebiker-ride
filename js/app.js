@@ -907,6 +907,7 @@
       '<button class="btn full" data-act="push-on">Hotovo, skúsiť znova</button></div>';
   }
   function vNotifCard() {
+    if (!PREF.list && !PREF.err) loadPrefs();
     var st = PUSH.state, busy = PUSH.busy;
     var status = st === "on" ? '<span class="nst on">● Zapnuté v tomto zariadení</span>' : st === "denied" ? '<span class="nst bad">● Vypnuté v nastaveniach telefónu</span>' : '<span class="nst">● Vypnuté</span>';
     var main = st === "on" ? '<div class="nacts"><button class="btn sm" data-act="push-test">' + sz(IC.bell, 14) + 'Poslať skúšobné</button><button class="btn sm gh" data-act="push-off">Vypnúť</button></div>'
@@ -928,11 +929,17 @@
       .catch(function () { PREF.err = true; })
       .then(function () { PREF.loading = false; drawPrefs(); });
   }
+  // zbalené: len jeden riadok so súhrnom, po ťuknutí sa rozbalí zoznam
   function vPrefs(on) {
-    if (!PREF.list) { if (!PREF.err) loadPrefs(); return '<div class="nprefs" id="nprefs">' + (PREF.err ? '<p class="nphint">Nastavenia upozornení sa nepodarilo načítať. <button class="lnk" data-act="pref-retry">Skúsiť znova</button></p>' : '<p class="nphint">Načítavam…</p>') + "</div>"; }
-    return '<div class="nprefs" id="nprefs"><span class="nph">Upozorni ma, keď…</span>' + (on ? "" : '<p class="nphint">Vyber si už teraz. Upozornenia prídu, keď ich v tomto zariadení zapneš.</p>') +
+    var open = PREF.open, n = PREF.list ? NKINDS.filter(function (k) { return PREF.list.indexOf(k[0]) > -1; }).length : null;
+    var sum = n == null ? (PREF.err ? "Nepodarilo sa načítať" : "Načítavam…") : n === NKINDS.length ? "Všetko zapnuté" : n === 0 ? "Všetko vypnuté" : "Zapnuté " + n + " z " + NKINDS.length;
+    var head = '<button type="button" class="nptog' + (open ? " open" : "") + '" data-act="pref-open" aria-expanded="' + !!open + '" aria-controls="nplist"><span class="grow"><b>Na čo ťa upozorníme</b><small>' + sum + "</small></span>" + sz(IC.back, 16).replace("<svg", '<svg class="chev"') + "</button>";
+    if (!PREF.list && !PREF.err && open) loadPrefs();
+    var body = !open ? "" : !PREF.list ? '<p class="nphint">' + (PREF.err ? 'Nastavenia upozornení sa nepodarilo načítať. <button class="lnk" data-act="pref-retry">Skúsiť znova</button>' : "Načítavam…") + "</p>" :
+      (on ? "" : '<p class="nphint">Vyber si už teraz. Upozornenia prídu, keď ich v tomto zariadení zapneš.</p>') +
       NKINDS.map(function (k) { var y = PREF.list.indexOf(k[0]) > -1; return '<div class="npref' + (y ? " on" : "") + '" data-act="pref" data-k="' + k[0] + '" role="switch" aria-checked="' + y + '" tabindex="0"><i>' + k[1] + '</i><span class="grow">' + k[2] + '</span><span class="sw' + (y ? " on" : "") + '"></span></div>'; }).join("") +
-      (PREF.list.length ? "" : '<p class="nphint">Všetko je vypnuté, takže ti nepríde žiadne upozornenie.</p>') + "</div>";
+      (PREF.list.length ? "" : '<p class="nphint">Všetko je vypnuté, takže ti nepríde žiadne upozornenie.</p>');
+    return '<div class="nprefs" id="nprefs">' + head + (open ? '<div id="nplist">' + body + "</div>" : "") + "</div>";
   }
   function drawPrefs() { var el = $("nprefs"); if (el) el.outerHTML = vPrefs(PUSH.state === "on"); }
   function togglePref(k) {
@@ -1559,6 +1566,7 @@
       case "edit-back": if (fmap) { fmap.remove(); fmap = null; } openRide(id); break;
       case "pref": togglePref(el.dataset.k); break;
       case "pref-retry": PREF.err = false; loadPrefs(); drawPrefs(); break;
+      case "pref-open": PREF.open = !PREF.open; drawPrefs(); break;
       case "repeat": openCreate(+el.dataset.i); break;
       case "tpl": saveD(); var ti = +el.dataset.i; if (D.tpl === ti) resetD(); else applyTpl(ti); drawCreate(true); break;
       case "d": saveD(); D[el.dataset.k] = el.dataset.k === "o" ? +el.dataset.v : el.dataset.v; drawCreate(true); break;
