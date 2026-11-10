@@ -27,8 +27,16 @@ export function env(name: string): string {
   return v;
 }
 
+function secretKey(): string {
+  try {
+    const k = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") ?? "{}").default;
+    if (k) return k;
+  } catch (_) { /* staršie projekty */ }
+  return env("SUPABASE_SERVICE_ROLE_KEY");
+}
+
 export function admin(): SupabaseClient {
-  return createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"), {
+  return createClient(env("SUPABASE_URL"), secretKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
@@ -37,7 +45,7 @@ export function admin(): SupabaseClient {
 export async function currentUser(req: Request) {
   const auth = req.headers.get("Authorization") ?? "";
   const token = auth.replace(/^Bearer\s+/i, "");
-  if (!token) return null;
+  if (!token || token.startsWith("sb_")) return null;
   const { data, error } = await admin().auth.getUser(token);
   if (error || !data?.user) return null;
   return data.user;

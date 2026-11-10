@@ -6,6 +6,11 @@
 
 create extension if not exists pg_cron;
 
+-- pomocné funkcie pre pravidlá prístupu sú v schéme private (nie sú dostupné cez API)
+create schema if not exists private;
+revoke all on schema private from anon, public;
+grant usage on schema private to authenticated;
+
 -- ---------------------------------------------------------------------
 -- 1. Profily (verejné údaje bikera – vidia ich prihlásení používatelia)
 -- ---------------------------------------------------------------------
@@ -123,40 +128,48 @@ create table if not exists public.ride_photos (
 -- ---------------------------------------------------------------------
 -- 4. Pomocné funkcie pre pravidlá prístupu
 -- ---------------------------------------------------------------------
-create or replace function public.are_friends(a uuid, b uuid) returns boolean
+create or replace function private.are_friends(a uuid, b uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from friendships
     where status = 'accepted'
       and ((requester = a and addressee = b) or (requester = b and addressee = a)));
 $$;
 
-create or replace function public.ride_host(r uuid) returns uuid
+create or replace function private.ride_host(r uuid) returns uuid
 language sql stable security definer set search_path = public as $$
   select host from rides where id = r;
 $$;
 
-create or replace function public.is_participant(r uuid) returns boolean
+create or replace function private.is_participant(r uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from ride_participants where ride_id = r and user_id = auth.uid());
 $$;
 
-create or replace function public.can_see_ride(r uuid) returns boolean
+create or replace function private.can_see_ride(r uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from rides where id = r and host = auth.uid())
       or exists (select 1 from ride_audience where ride_id = r and user_id = auth.uid())
       or exists (select 1 from ride_participants where ride_id = r and user_id = auth.uid());
 $$;
 
-create or replace function public.chat_open(r uuid) returns boolean
+create or replace function private.chat_open(r uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from rides where id = r and ends_at > now());
 $$;
 
-create or replace function public.can_invite(r uuid) returns boolean
+create or replace function private.can_invite(r uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from rides where id = r and ends_at > now()
-                 and (host = auth.uid() or (allow_invites and public.is_participant(r))));
+                 and (host = auth.uid() or (allow_invites and private.is_participant(r))));
 $$;
+
+create or replace function private.try_uuid(t text) returns uuid
+language plpgsql immutable set search_path = '' as $$
+begin
+  return t::uuid;
+exception when others then
+  return null;
+end $$;
 
 -- ---------------------------------------------------------------------
 -- 5. Triggery
@@ -193,7 +206,7 @@ create trigger on_ride_created after insert on public.rides
 
 -- používateľ si sám nemôže nastaviť „overený Instagram“ ani Stravu
 create or replace function public.protect_profile() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = '' as $$
 begin
   if coalesce(auth.role(), '') = 'authenticated' then
     new.ig_verified      := old.ig_verified;
@@ -249,7 +262,7 @@ create policy "skratky – vlastné" on public.shortcuts for all to authenticate
 
 drop policy if exists "jazdy – čítanie" on public.rides;
 create policy "jazdy – čítanie" on public.rides for select to authenticated
-  using (host = auth.uid() or public.can_see_ride(id));
+  using (host = auth.uid() or private.can_see_ride(id));
 drop policy if exists "jazdy – vytvorenie" on public.rides;
 create policy "jazdy – vytvorenie" on public.rides for insert to authenticated with check (host = auth.uid());
 drop policy if exists "jazdy – úprava" on public.rides;
@@ -260,39 +273,52 @@ create policy "jazdy – zrušenie" on public.rides for delete to authenticated 
 
 drop policy if exists "publikum – čítanie" on public.ride_audience;
 create policy "publikum – čítanie" on public.ride_audience for select to authenticated
-  using (user_id = auth.uid() or public.ride_host(ride_id) = auth.uid() or public.is_participant(ride_id));
+  using (user_id = auth.uid() or private.ride_host(ride_id) = auth.uid() or private.is_participant(ride_id));
 drop policy if exists "publikum – pozvanie" on public.ride_audience;
 create policy "publikum – pozvanie" on public.ride_audience for insert to authenticated
-  with check (invited_by = auth.uid() and public.can_invite(ride_id) and public.are_friends(auth.uid(), user_id));
+  with check (invited_by = auth.uid() and private.can_invite(ride_id) and private.are_friends(auth.uid(), user_id));
 drop policy if exists "publikum – odobratie" on public.ride_audience;
 create policy "publikum – odobratie" on public.ride_audience for delete to authenticated
-  using (public.ride_host(ride_id) = auth.uid());
+  using (private.ride_host(ride_id) = auth.uid());
 
 drop policy if exists "účastníci – čítanie" on public.ride_participants;
 create policy "účastníci – čítanie" on public.ride_participants for select to authenticated
-  using (public.can_see_ride(ride_id));
+  using (private.can_see_ride(ride_id));
 drop policy if exists "účastníci – pridám sa" on public.ride_participants;
 create policy "účastníci – pridám sa" on public.ride_participants for insert to authenticated
-  with check (user_id = auth.uid() and public.can_see_ride(ride_id) and public.chat_open(ride_id));
+  with check (user_id = auth.uid() and private.can_see_ride(ride_id) and private.chat_open(ride_id));
 drop policy if exists "účastníci – odhlásim sa" on public.ride_participants;
 create policy "účastníci – odhlásim sa" on public.ride_participants for delete to authenticated
-  using (user_id = auth.uid() and public.ride_host(ride_id) <> auth.uid());
+  using (user_id = auth.uid() and private.ride_host(ride_id) <> auth.uid());
 
 drop policy if exists "chat – čítanie" on public.messages;
 create policy "chat – čítanie" on public.messages for select to authenticated
-  using (public.is_participant(ride_id) and public.chat_open(ride_id));
+  using (private.is_participant(ride_id) and private.chat_open(ride_id));
 drop policy if exists "chat – písanie" on public.messages;
 create policy "chat – písanie" on public.messages for insert to authenticated
-  with check (user_id = auth.uid() and public.is_participant(ride_id) and public.chat_open(ride_id));
+  with check (user_id = auth.uid() and private.is_participant(ride_id) and private.chat_open(ride_id));
 
 drop policy if exists "fotky – čítanie" on public.ride_photos;
 create policy "fotky – čítanie" on public.ride_photos for select to authenticated
-  using (user_id = auth.uid() or public.can_see_ride(ride_id));
+  using (user_id = auth.uid() or private.can_see_ride(ride_id));
 drop policy if exists "fotky – pridanie" on public.ride_photos;
 create policy "fotky – pridanie" on public.ride_photos for insert to authenticated
-  with check (user_id = auth.uid() and public.is_participant(ride_id));
+  with check (user_id = auth.uid() and private.is_participant(ride_id));
 drop policy if exists "fotky – zmazanie" on public.ride_photos;
 create policy "fotky – zmazanie" on public.ride_photos for delete to authenticated using (user_id = auth.uid());
+
+-- práva: anonymný prístup nič, prihlásení len cez pravidlá vyššie, tokeny len server
+revoke all on all tables in schema public from anon;
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.profiles, public.friendships, public.shortcuts, public.rides,
+  public.ride_audience, public.ride_participants, public.messages, public.ride_photos to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+revoke all on public.ig_tokens, public.strava_tokens from anon, authenticated;
+revoke execute on all functions in schema private from anon, public;
+grant execute on all functions in schema private to authenticated;
+revoke execute on function public.handle_new_user() from anon, authenticated, public;
+revoke execute on function public.handle_new_ride() from anon, authenticated, public;
+revoke execute on function public.protect_profile() from anon, authenticated, public;
 
 -- ---------------------------------------------------------------------
 -- 7. Úložisko: profilovky (verejné) a fotky z jázd (súkromné)
@@ -306,13 +332,16 @@ create policy "profilovky – nahranie" on storage.objects for insert to authent
 drop policy if exists "profilovky – prepis" on storage.objects;
 create policy "profilovky – prepis" on storage.objects for update to authenticated
   using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "profilovky – čítanie" on storage.objects;
+create policy "profilovky – čítanie" on storage.objects for select to authenticated
+  using (bucket_id = 'avatars');
 drop policy if exists "fotky jázd – čítanie" on storage.objects;
 create policy "fotky jázd – čítanie" on storage.objects for select to authenticated
-  using (bucket_id = 'ride-photos' and public.can_see_ride(((storage.foldername(name))[1])::uuid));
+  using (case when bucket_id = 'ride-photos' then private.can_see_ride(private.try_uuid((storage.foldername(name))[1])) else false end);
 drop policy if exists "fotky jázd – nahranie" on storage.objects;
 create policy "fotky jázd – nahranie" on storage.objects for insert to authenticated
-  with check (bucket_id = 'ride-photos' and public.is_participant(((storage.foldername(name))[1])::uuid)
-              and (storage.foldername(name))[2] = auth.uid()::text);
+  with check (case when bucket_id = 'ride-photos' then private.is_participant(private.try_uuid((storage.foldername(name))[1]))
+              and (storage.foldername(name))[2] = auth.uid()::text else false end);
 drop policy if exists "fotky jázd – zmazanie" on storage.objects;
 create policy "fotky jázd – zmazanie" on storage.objects for delete to authenticated
   using (bucket_id = 'ride-photos' and (storage.foldername(name))[2] = auth.uid()::text);

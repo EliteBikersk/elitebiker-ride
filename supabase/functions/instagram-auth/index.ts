@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   try {
     const body = await readJson(req);
     const code = String(body.code ?? "").replace(/#_$/, "");
-    const redirectUri = String(body.redirect_uri ?? env("APP_URL"));
+    const redirectUri = env("APP_URL");
     if (!code) return json(req, { error: "Chýba kód z Instagramu." }, 400);
 
     // 1) kód → krátkodobý token
@@ -48,6 +48,7 @@ Deno.serve(async (req) => {
     let email: string | null = null;
 
     const linkTo = body.link ? await currentUser(req) : null;
+    if (body.link && !linkTo) return json(req, { error: "Nie si prihlásený." }, 401);
     const { data: existing } = await db.from("profiles").select("id").eq("ig_user_id", igId).maybeSingle();
 
     if (linkTo) {
