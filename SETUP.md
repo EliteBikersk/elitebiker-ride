@@ -6,8 +6,10 @@ Stránka beží na GitHub Pages. Kým nie je vyplnený `js/config.js`, beží v 
 | Služba | Na čo | Cena na štart |
 |---|---|---|
 | **Supabase** | databáza, prihlásenie, chat v reálnom čase, fotky, serverové funkcie | zadarmo (Free plán) |
-| **Strava API** | pripojenie Stravy | zadarmo |
-| **Meta for Developers** | prihlásenie cez Instagram | zadarmo |
+| **Strava API** | pripojenie Stravy | od 2026 len s predplatným Stravy (cca 11,99 $/mes.) – **zatiaľ vypnuté** |
+| **Meta for Developers** | prihlásenie cez Instagram | zadarmo – ale nové Meta aplikácie (od konca 10/2026) už nemajú „Instagram login“, len Unified login cez Facebook → **zatiaľ vypnuté**, IG meno sa zadáva ručne |
+
+**Stav 10. 11. 2026:** beží Supabase + prihlásenie e-mailom (odkaz alebo kód) cez SMTP Shoptetu (info@elitebiker.sk). Instagram a Strava sa zobrazia, až keď sa vyplní `IG_APP_ID` / `STRAVA_CLIENT_ID`.
 
 Tajné kľúče (`…_SECRET`, `service_role`) **nikdy** nepatria do `config.js` ani do GitHubu – len do Supabase (Secrets).
 
