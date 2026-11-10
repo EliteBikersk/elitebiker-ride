@@ -832,13 +832,14 @@
   // riadok štatistík ako na Strave: malý popis nad veľkým číslom
   function statRow(x, stats, X, Y, W, align, vs) {
     vs = vs || 64; var cw = W / stats.length;
+    // jedna veľkosť pre všetky čísla, aby sa zmestilo aj najdlhšie
+    stats.forEach(function (s) { x.font = F(800, vs); while (x.measureText(s[1]).width > cw - 44 && vs > 30) { vs -= 2; x.font = F(800, vs); } });
     stats.forEach(function (s, i) {
       var cx = align === "center" ? X + cw * i + cw / 2 : X + cw * i;
       x.textAlign = align === "center" ? "center" : "left";
       x.font = F(600, vs * .4); x.fillStyle = "rgba(255,255,255,.78)"; x.fillText(s[0].toUpperCase(), cx, Y);
       x.font = F(800, vs); x.fillStyle = "#fff";
-      var v = s[1]; while (x.measureText(v).width > cw - 44 && vs > 30) { vs -= 2; x.font = F(800, vs); }
-      x.fillText(v, cx, Y + vs * 1.12);
+      x.fillText(s[1], cx, Y + vs * 1.12);
     });
     x.textAlign = "left";
   }
