@@ -52,8 +52,10 @@ $$);
 
 ### Upozornenia na žiadosti a pozvánky, katalóg bicyklov
 - Funkcia `notify` (bez JWT, overuje `x-cron-key`) pošle upozornenie do mobilu. Volajú ju triggery v databáze cez `private.push_notify` (pg_net): nová / prijatá žiadosť o priateľstvo, kamoš pridaný cez odkaz, pozvánka na jazdu, niekto sa pridal k mojej jazde. Sebe sa nič neposiela a chyba upozornenia nikdy nezastaví samotnú akciu.
-- Zariadenie dostáva tieto upozornenia, ak má v `push_subscriptions` stĺpec `social = true` (predvolené).
-- Funkcia `bike-catalog` raz denne (4:41, úloha `eb-ride-bike-catalog`) prejde kategóriu *Bicykel pre každého* na elitebiker.sk a uloží ID, názov, značku, odkaz a fotku do `catalog_bikes`. Ak načíta menej ako 20 bicyklov, katalóg nemení.
+- Zariadenie dostáva tieto upozornenia, ak má v `push_subscriptions` stĺpec `social = true` (predvolené). Pri každom zariadení sa ukladá `device`, `last_status`, `last_error` a `last_at` – stav posledného odoslania (201 = služba prijala, 404/410 = zariadenie zrušené a zmaže sa).
+- Šifrovanie upozornení (RFC 8291, aes128gcm) a podpis VAPID (RFC 8292) robí `_shared/push.ts` cez WebCrypto – bez knižnice web-push. Kontrola šifrovania priamo na serveri: `notify` s `{"selftest":true,"p256dh":…,"auth":…}` a kľúčom `x-cron-key` vráti zašifrovaný text „selftest-ok“.
+- Vek a mesto (`profiles.age`, `profiles.city`) sa z tabuľky priamo nečítajú – vracia ich `profile_private(ids)` len sebe a priateľom.
+- Funkcia `bike-catalog` raz denne (4:41, úloha `eb-ride-bike-catalog`) prejde kategórie *Bicykel pre každého* a *Elektrobicykel* (`ebike = true`) na elitebiker.sk a uloží ID, názov, značku, odkaz a fotku do `catalog_bikes`. Ak načíta menej ako 20 bicyklov, katalóg nemení.
 - Používateľ má najviac 5 bicyklov (`user_bikes`); odkaz a fotku berie server len z katalógu, nie od používateľa.
 
 ## 2. Zapnutie

@@ -15,8 +15,10 @@ Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pri
 - **Verejné jazdy v okolí** – podľa mesta v profile (do 30 km), presná poloha sa nezisťuje.
 - **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú – pred nahraním sa dajú orezať (posun, priblíženie, otočenie, pomer 4:5, 1:1, 9:16), profilovka do kruhu.
 - **Zdieľanie s EliteBiker dizajnom** (ako na Strave): fotka z jazdy s číslami (km, stúpanie, čas), trasou a logom – štýly Štatistiky, Trasa, Partia a priehľadná Nálepka, formát Príbeh 9:16 alebo Príspevok 4:5. Obrázok sa kreslí v telefóne.
-- **Moje bicykle**: výber z ponuky elitebiker.sk (aktualizuje sa každý deň) alebo vlastný názov; kamoši ich vidia pri mene.
-- **Upozornenia do mobilu**: žiadosť o priateľstvo, prijatie, pozvánka na jazdu, kto sa pridal k jazde, zlé počasie.
+- **Moje bicykle**: výber z ponuky elitebiker.sk – bicykle aj elektrobicykle (aktualizuje sa každý deň) – alebo vlastný názov; kamoši ich vidia pri mene.
+- **Profil kamoša**: klik na priateľa ukáže vek, mesto, kontakt, na čom jazdí, bicykle a jeho najbližšiu jazdu. Vek a mesto vidia len priatelia.
+- **Nová jazda podľa bicykla**: cesta a gravel – tempo a trasa; horský – farby trailov (zelená, modrá, červená, čierna); e-bike a dirt bez nich. Predvolene môžu účastníci pozvať ďalších, zaškrtnutím „len pozvaní“.
+- **Upozornenia do mobilu**: žiadosť o priateľstvo, prijatie, pozvánka na jazdu, kto sa pridal k jazde, zlé počasie. V Profile stav zariadení, skúšobné upozornenie a návod, ako pridať appku na plochu (iPhone, Android).
 - **EliteBiker Klub**: body počíta server, odmeny (kontrola a servis zdarma…), história bonusov, zľavy pre členov, odkazy do e-shopu.
 - **Administrácia** (`admin.html`) s dvojstupňovým overením: používatelia, body, vydanie odmeny, verejné jazdy, záznam zmien.
 - **Ochrana**: RLS + stĺpcové práva, súkromné profily, limity proti zneužitiu, tajné kľúče vo Vaulte, CSP, vlastné písmo, zmazanie účtu a údajov.
