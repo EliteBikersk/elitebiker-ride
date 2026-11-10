@@ -1004,73 +1004,6 @@ language sql stable security definer set search_path = '' as $$
   select json_build_object('admin', private.is_admin(), 'aal', coalesce(auth.jwt() ->> 'aal', 'aal1'));
 $$;
 
-create or replace function public.admin_overview() returns json
-language plpgsql stable security definer set search_path = '' as $$
-begin
-  perform private.assert_admin();
-  return json_build_object(
-    'users',          (select count(*) from public.profiles),
-    'users_7d',       (select count(*) from auth.users u where u.created_at > now() - interval '7 days'),
-    'active_30d',     (select count(*) from auth.users u where u.last_sign_in_at > now() - interval '30 days'),
-    'rides_upcoming', (select count(*) from public.rides r where r.ends_at > now()),
-    'public_upcoming',(select count(*) from public.rides r where r.ends_at > now() and r.visibility = 'public'),
-    'rides_30d',      (select count(*) from public.rides r where r.ends_at < now() and r.ends_at > now() - interval '30 days'),
-    'points_balance', (select coalesce(sum(up.balance), 0) from private.user_points up),
-    'rewards_30d',    (select count(*) from public.point_adjustments pa where pa.kind = 'reward' and pa.created_at > now() - interval '30 days'));
-end $$;
-
-create or replace function public.admin_users(p_q text default '', p_sort text default 'new', p_limit int default 50, p_offset int default 0)
-returns table (id uuid, display_name text, email text, avatar_url text, city text, age int, ig_username text, fb_name text,
-               created_at timestamptz, last_sign_in_at timestamptz, joined int, hosted int, photos int,
-               bonus int, spent int, earned int, balance int, total bigint)
-language plpgsql stable security definer set search_path = '' as $$
-declare s text;
-begin
-  perform private.assert_admin();
-  s := extensions.unaccent(lower(regexp_replace(ltrim(trim(coalesce(p_q, '')), '@'), '([%_\\])', '\\\1', 'g')));
-  return query
-    select p.id, p.display_name, u.email::text, p.avatar_url, p.city, p.age, p.ig_username, p.fb_name,
-           u.created_at, u.last_sign_in_at, up.joined, up.hosted, up.photos, up.bonus, up.spent, up.earned, up.balance,
-           count(*) over ()
-    from public.profiles p
-    join auth.users u on u.id = p.id
-    join private.user_points up on up.user_id = p.id
-    where s = ''
-       or extensions.unaccent(lower(coalesce(p.display_name, ''))) like '%' || s || '%'
-       or lower(coalesce(u.email::text, '')) like '%' || s || '%'
-       or coalesce(p.ig_username, '') like '%' || s || '%'
-       or extensions.unaccent(lower(coalesce(p.fb_name, ''))) like '%' || s || '%'
-       or extensions.unaccent(lower(coalesce(p.city, ''))) like '%' || s || '%'
-       or replace(p.id::text, '-', '') like replace(s, '-', '') || '%'
-    order by case when p_sort = 'points' then up.balance end desc nulls last,
-             case when p_sort = 'name' then lower(coalesce(p.display_name, u.email::text)) end asc,
-             u.created_at desc
-    limit least(greatest(coalesce(p_limit, 50), 1), 200) offset greatest(coalesce(p_offset, 0), 0);
-end $$;
-
-create or replace function public.admin_user(p_user uuid) returns json
-language plpgsql stable security definer set search_path = '' as $$
-begin
-  perform private.assert_admin();
-  return (
-    select json_build_object(
-      'id', p.id, 'display_name', p.display_name, 'email', u.email, 'avatar_url', p.avatar_url, 'city', p.city, 'age', p.age,
-      'ig_username', p.ig_username, 'fb_name', p.fb_name, 'bike_types', p.bike_types,
-      'created_at', u.created_at, 'last_sign_in_at', u.last_sign_in_at, 'confirmed', u.email_confirmed_at is not null,
-      'points', json_build_object('joined', up.joined, 'hosted', up.hosted, 'photos', up.photos, 'bonus', up.bonus,
-                                  'spent', up.spent, 'earned', up.earned, 'balance', up.balance),
-      'friends', (select count(*) from public.friendships f where f.status = 'accepted' and p.id in (f.requester, f.addressee)),
-      'upcoming', (select count(*) from public.ride_participants rp join public.rides r on r.id = rp.ride_id where rp.user_id = p.id and r.ends_at > now()),
-      'history', coalesce((select json_agg(json_build_object('id', pa.id, 'kind', pa.kind, 'delta', pa.delta, 'reason', pa.reason,
-                                                            'at', pa.created_at, 'admin', ad.display_name) order by pa.created_at desc)
-                           from public.point_adjustments pa left join public.profiles ad on ad.id = pa.admin_id
-                           where pa.user_id = p.id), '[]'::json))
-    from public.profiles p
-    join auth.users u on u.id = p.id
-    join private.user_points up on up.user_id = p.id
-    where p.id = p_user);
-end $$;
-
 create or replace function public.admin_adjust_points(p_user uuid, p_delta int, p_reason text, p_kind text default 'bonus')
 returns json language plpgsql volatile security definer set search_path = '' as $$
 declare
@@ -1094,23 +1027,6 @@ begin
   values (auth.uid(), case when p_kind = 'reward' then 'reward' else 'points' end, p_user,
           jsonb_build_object('delta', d, 'reason', why, 'balance_before', bal));
   return (select json_build_object('earned', up.earned, 'balance', up.balance) from private.user_points up where up.user_id = p_user);
-end $$;
-
-create or replace function public.admin_rides() returns json
-language plpgsql stable security definer set search_path = '' as $$
-begin
-  perform private.assert_admin();
-  return json_build_object(
-    'counts', json_build_object(
-      'public',  (select count(*) from public.rides r where r.ends_at > now() and r.visibility = 'public'),
-      'friends', (select count(*) from public.rides r where r.ends_at > now() and r.visibility = 'friends'),
-      'private', (select count(*) from public.rides r where r.ends_at > now() and r.visibility = 'private')),
-    'public', coalesce((select json_agg(json_build_object(
-        'id', r.id, 'title', r.title, 'type', r.type, 'starts_at', r.starts_at, 'ends_at', r.ends_at, 'meet_label', r.meet_label,
-        'note', r.note, 'host', r.host, 'host_name', hp.display_name, 'max_people', r.max_people,
-        'people', (select count(*) from public.ride_participants rp where rp.ride_id = r.id)) order by r.starts_at)
-      from public.rides r left join public.profiles hp on hp.id = r.host
-      where r.ends_at > now() and r.visibility = 'public'), '[]'::json));
 end $$;
 
 -- admin môže zrušiť len verejnú jazdu (napr. nevhodný obsah); súkromné jazdy nevidí
@@ -1173,11 +1089,9 @@ begin
 end $$;
 
 -- práva na nové funkcie
-revoke execute on function public.admin_status(), public.admin_overview(), public.admin_users(text, text, int, int),
-  public.admin_user(uuid), public.admin_adjust_points(uuid, int, text, text), public.admin_rides(),
+revoke execute on function public.admin_status(), public.admin_adjust_points(uuid, int, text, text),
   public.admin_delete_ride(uuid, text), public.admin_log_list(int), public.export_my_data() from public, anon;
-grant execute on function public.admin_status(), public.admin_overview(), public.admin_users(text, text, int, int),
-  public.admin_user(uuid), public.admin_adjust_points(uuid, int, text, text), public.admin_rides(),
+grant execute on function public.admin_status(), public.admin_adjust_points(uuid, int, text, text),
   public.admin_delete_ride(uuid, text), public.admin_log_list(int), public.export_my_data() to authenticated;
 revoke execute on all functions in schema private from anon, public;
 grant execute on all functions in schema private to authenticated;
@@ -1485,6 +1399,366 @@ begin
 end $$;
 revoke all on function public.save_push_subscription(text, text, text, text) from public, anon;
 grant execute on function public.save_push_subscription(text, text, text, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 22. Na čo chcem upozornenia (výber podľa udalostí)
+-- ---------------------------------------------------------------------
+create or replace function private.notify_kinds() returns text[] language sql immutable set search_path = '' as
+$$ select array['friend_request','friend_accepted','ride_invite','ride_join','weather']::text[] $$;
+
+create table if not exists public.notify_prefs (
+  user_id    uuid primary key references public.profiles(id) on delete cascade,
+  push       text[] not null default private.notify_kinds(),
+  updated_at timestamptz not null default now(),
+  constraint notify_prefs_kinds check (push <@ private.notify_kinds())
+);
+alter table public.notify_prefs enable row level security;
+drop policy if exists "upozornenia – moje nastavenie" on public.notify_prefs;
+create policy "upozornenia – moje nastavenie" on public.notify_prefs for select using (user_id = (select auth.uid()));
+drop policy if exists "upozornenia – moje nastavenie (zápis)" on public.notify_prefs;
+create policy "upozornenia – moje nastavenie (zápis)" on public.notify_prefs for insert with check (user_id = (select auth.uid()));
+drop policy if exists "upozornenia – moje nastavenie (úprava)" on public.notify_prefs;
+create policy "upozornenia – moje nastavenie (úprava)" on public.notify_prefs for update using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+revoke all on public.notify_prefs from anon, authenticated;
+grant select (user_id, push, updated_at), insert (user_id, push), update (push) on public.notify_prefs to authenticated;
+
+create or replace function private.prefs_guard() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is not null then new.user_id := auth.uid(); end if;
+  new.push := array(select distinct x from unnest(coalesce(new.push, '{}'::text[])) x order by 1);
+  new.updated_at := now();
+  if auth.uid() is not null then perform private.hit('prefs', 120, interval '1 hour'); end if;
+  return new;
+end $$;
+drop trigger if exists prefs_guard on public.notify_prefs;
+create trigger prefs_guard before insert or update on public.notify_prefs for each row execute function private.prefs_guard();
+
+-- počasie posiela funkcia weather-alerts len na zariadenia so stĺpcom weather = true: zosúladíme ho s nastavením
+create or replace function private.prefs_sync() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.push_subscriptions set weather = ('weather' = any (new.push)) where user_id = new.user_id;
+  return null;
+end $$;
+drop trigger if exists prefs_sync on public.notify_prefs;
+create trigger prefs_sync after insert or update on public.notify_prefs for each row execute function private.prefs_sync();
+
+create or replace function private.pref_kind(k text) returns text language sql immutable set search_path = '' as
+$$ select case k when 'friend_joined' then 'friend_accepted' else k end $$;
+
+-- upozornenie má zmysel poslať, len ak má človek zapnuté zariadenie a daný druh nevypol
+create or replace function private.wants(p_user uuid, p_kind text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from public.push_subscriptions s where s.user_id = p_user and s.social)
+     and private.pref_kind(p_kind) = any (coalesce((select n.push from public.notify_prefs n where n.user_id = p_user), private.notify_kinds()));
+$$;
+
+create or replace function private.push_notify(p_user uuid, p_payload jsonb) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if p_user is null or p_user = auth.uid() then return; end if;
+  if not private.wants(p_user, p_payload->>'kind') then return; end if;
+  perform net.http_post(
+    url := 'https://kfkbqamnblyitpugllps.supabase.co/functions/v1/notify',
+    body := p_payload || jsonb_build_object('user_id', p_user),
+    headers := jsonb_build_object('Content-Type', 'application/json',
+                 'x-cron-key', (select s.decrypted_secret from vault.decrypted_secrets s where s.name = 'eb_cron_key')),
+    timeout_milliseconds := 15000);
+exception when others then
+  raise warning 'push_notify: %', sqlerrm;
+end $$;
+
+-- nové zariadenie prevezme nastavenie počasia
+create or replace function public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_device text default null)
+returns void
+language plpgsql security definer set search_path = public
+as $$
+declare w boolean := coalesce((select 'weather' = any (n.push) from notify_prefs n where n.user_id = auth.uid()), true);
+begin
+  if auth.uid() is null then raise exception 'Nie si prihlásený.'; end if;
+  if p_endpoint !~ '^https://' or char_length(p_endpoint) > 1000 then raise exception 'Neplatné zariadenie.'; end if;
+  if p_p256dh !~ '^[A-Za-z0-9_-]{80,100}$' or p_auth !~ '^[A-Za-z0-9_-]{16,32}$' then raise exception 'Neplatné zariadenie.'; end if;
+  perform private.hit('push_save', 30, interval '1 hour');
+  insert into push_subscriptions (endpoint, user_id, p256dh, auth, device, weather)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth, left(p_device, 80), w)
+  on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth,
+    device = coalesce(excluded.device, push_subscriptions.device), weather = w,
+    created_at = case when push_subscriptions.p256dh = excluded.p256dh and push_subscriptions.user_id = excluded.user_id then push_subscriptions.created_at else now() end,
+    last_status = case when push_subscriptions.p256dh = excluded.p256dh then push_subscriptions.last_status end,
+    last_error = case when push_subscriptions.p256dh = excluded.p256dh then push_subscriptions.last_error end;
+end $$;
+revoke all on function public.save_push_subscription(text, text, text, text) from public, anon;
+grant execute on function public.save_push_subscription(text, text, text, text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 23. Organizátor môže jazdu po vytvorení upraviť
+-- ---------------------------------------------------------------------
+create or replace function private.ride_guard() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then
+    new.host := coalesce(auth.uid(), new.host);
+    new.created_at := now();
+    if new.starts_at < now() - interval '15 minutes' then
+      raise exception 'Jazda nemôže začínať v minulosti.' using errcode = '22023';
+    end if;
+    if new.starts_at > now() + interval '400 days' then
+      raise exception 'Jazdu môžeš naplánovať najviac rok dopredu.' using errcode = '22023';
+    end if;
+    if new.ends_at - new.starts_at < interval '30 minutes' or new.ends_at - new.starts_at > interval '32 days' then
+      raise exception 'Jazda musí trvať od 30 minút do 31 dní.' using errcode = '22023';
+    end if;
+    perform private.hit('ride', 15, interval '1 day');
+  else
+    new.id := old.id; new.host := old.host; new.created_at := old.created_at;
+    if old.ends_at < now() then
+      raise exception 'Skončenú jazdu už nemôžeš upraviť.' using errcode = '22023';
+    end if;
+    if new.starts_at is distinct from old.starts_at or new.ends_at is distinct from old.ends_at then
+      if new.starts_at is distinct from old.starts_at and new.starts_at < now() - interval '15 minutes' then
+        raise exception 'Jazda nemôže začínať v minulosti.' using errcode = '22023';
+      end if;
+      if new.starts_at > now() + interval '400 days' then
+        raise exception 'Jazdu môžeš naplánovať najviac rok dopredu.' using errcode = '22023';
+      end if;
+      if new.ends_at - new.starts_at < interval '30 minutes' or new.ends_at - new.starts_at > interval '32 days' then
+        raise exception 'Jazda musí trvať od 30 minút do 31 dní.' using errcode = '22023';
+      end if;
+    end if;
+    if new.max_people is not null and new.max_people is distinct from old.max_people
+       and new.max_people < (select count(*) from public.ride_participants p where p.ride_id = new.id) then
+      raise exception 'Na jazdu sa už prihlásilo viac ľudí, ako je nový limit.' using errcode = '22023';
+    end if;
+    -- iný čas alebo miesto: počasie sa skontroluje odznova
+    if new.starts_at is distinct from old.starts_at or new.ends_at is distinct from old.ends_at
+       or new.meet_lat is distinct from old.meet_lat or new.meet_lng is distinct from old.meet_lng then
+      delete from public.ride_weather_alerts w where w.ride_id = new.id;
+    end if;
+    if auth.uid() is not null then perform private.hit('ride_edit', 60, interval '1 hour'); end if;
+  end if;
+  if new.visibility = 'public' and (tg_op = 'INSERT' or old.visibility <> 'public')
+     and (select count(*) from public.rides r where r.host = new.host and r.visibility = 'public' and r.ends_at > now() and r.id <> new.id) >= 5 then
+    raise exception 'Naraz môžeš mať najviac 5 verejných jázd.' using errcode = 'P0001';
+  end if;
+  new.allow_invites := new.visibility <> 'private';
+  return new;
+end $$;
+
+grant update (title, note, max_people, link_url, visibility, type, starts_at, ends_at, meet_lat, meet_lng, meet_label,
+              route, distance_km, elevation_m, pace, trails) on public.rides to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 24. Telefón pre spolujazdcov, meranie používania, administrácia bez osobných údajov
+-- ---------------------------------------------------------------------
+-- ---------------------------------------------------------------------
+-- 1. Telefón
+-- ---------------------------------------------------------------------
+create table if not exists public.user_phones (
+  user_id    uuid primary key references public.profiles(id) on delete cascade,
+  phone      text not null constraint user_phones_format check (phone ~ '^\+[1-9][0-9]{7,14}$'),
+  updated_at timestamptz not null default now()
+);
+alter table public.user_phones enable row level security;
+revoke all on public.user_phones from anon, authenticated, public;
+drop policy if exists "telefón – môj" on public.user_phones;
+create policy "telefón – môj" on public.user_phones for select to authenticated using (user_id = (select auth.uid()));
+drop policy if exists "telefón – môj (zápis)" on public.user_phones;
+create policy "telefón – môj (zápis)" on public.user_phones for insert to authenticated with check (user_id = (select auth.uid()));
+drop policy if exists "telefón – môj (úprava)" on public.user_phones;
+create policy "telefón – môj (úprava)" on public.user_phones for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+drop policy if exists "telefón – môj (zmazanie)" on public.user_phones;
+create policy "telefón – môj (zmazanie)" on public.user_phones for delete to authenticated using (user_id = (select auth.uid()));
+grant select (user_id, phone, updated_at), insert (user_id, phone), update (phone), delete on public.user_phones to authenticated;
+
+create or replace function private.phone_guard() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if tg_op = 'INSERT' then new.user_id := coalesce(auth.uid(), new.user_id); else new.user_id := old.user_id; end if;
+  new.updated_at := now();
+  perform private.hit('phone', 20, interval '1 day');
+  return new;
+end $$;
+drop trigger if exists phone_guard on public.user_phones;
+create trigger phone_guard before insert or update on public.user_phones for each row execute function private.phone_guard();
+
+-- čísla ostatných účastníkov jazdy, na ktorú idem; po skončení jazdy už nič
+create or replace function public.ride_phones(p_ride uuid) returns table (user_id uuid, phone text)
+language sql stable security definer set search_path = '' as $$
+  select o.user_id, ph.phone
+  from public.ride_participants me
+  join public.rides r on r.id = me.ride_id and r.ends_at > now()
+  join public.ride_participants o on o.ride_id = me.ride_id and o.user_id <> me.user_id
+  join public.user_phones ph on ph.user_id = o.user_id
+  where me.ride_id = p_ride and me.user_id = (select auth.uid());
+$$;
+revoke execute on function public.ride_phones(uuid) from public, anon;
+grant execute on function public.ride_phones(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 2. Meranie používania
+--   visit_days: koľkokrát sa appka v daný deň otvorila (bez akejkoľvek identity)
+--   activity_days: ktorý prihlásený používateľ bol v daný deň aktívny (na počty aktívnych, maže sa po 400 dňoch)
+-- ---------------------------------------------------------------------
+create table if not exists private.visit_days (
+  day  date not null,
+  kind text not null check (kind in ('open', 'invite', 'ride', 'login')),
+  n    int  not null default 0,
+  primary key (day, kind)
+);
+create table if not exists private.activity_days (
+  user_id    uuid not null references auth.users(id) on delete cascade,
+  day        date not null,
+  platform   text not null default 'web' check (platform in ('ios', 'android', 'desktop', 'web')),
+  standalone boolean not null default false,
+  opens      int not null default 1,
+  primary key (user_id, day)
+);
+create index if not exists activity_days_day_idx on private.activity_days (day);
+revoke all on private.visit_days, private.activity_days from anon, authenticated, public;
+
+create or replace function private.today() returns date language sql stable set search_path = '' as
+$$ select (now() at time zone 'Europe/Bratislava')::date $$;
+
+create or replace function public.track(p_kind text default 'open', p_platform text default null, p_standalone boolean default false)
+returns void language plpgsql volatile security definer set search_path = '' as $$
+declare
+  d  date := private.today();
+  k  text := case when p_kind in ('open', 'invite', 'ride', 'login') then p_kind else 'open' end;
+  pf text := case when p_platform in ('ios', 'android', 'desktop') then p_platform else 'web' end;
+begin
+  -- strop proti nafúknutiu čísel
+  insert into private.visit_days as v (day, kind, n) values (d, k, 1)
+  on conflict (day, kind) do update set n = v.n + 1 where v.n < 200000;
+  if auth.uid() is not null then
+    insert into private.activity_days as a (user_id, day, platform, standalone, opens) values (auth.uid(), d, pf, coalesce(p_standalone, false), 1)
+    on conflict (user_id, day) do update set platform = excluded.platform, standalone = a.standalone or excluded.standalone, opens = least(a.opens + 1, 1000);
+  end if;
+end $$;
+revoke execute on function public.track(text, text, boolean) from public;
+grant execute on function public.track(text, text, boolean) to anon, authenticated;
+
+-- ---------------------------------------------------------------------
+-- 3. Administrácia bez osobných údajov
+-- ---------------------------------------------------------------------
+drop function if exists public.admin_overview();
+drop function if exists public.admin_users(text, text, int, int);
+drop function if exists public.admin_user(uuid);
+drop function if exists public.admin_rides();
+
+-- poradie registrácie a meno, nič viac
+create or replace function public.admin_names() returns table (poradie bigint, meno text)
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  perform private.assert_admin();
+  return query
+    select row_number() over (order by p.created_at, p.id), coalesce(nullif(trim(p.display_name), ''), 'Bez mena')
+    from public.profiles p order by p.created_at, p.id;
+end $$;
+
+create or replace function public.admin_metrics(p_days int default 30) returns json
+language plpgsql stable security definer set search_path = '' as $$
+declare
+  t date := private.today();
+  nd int := least(greatest(coalesce(p_days, 30), 7), 180);
+begin
+  perform private.assert_admin();
+  return json_build_object(
+    'today', t,
+    'since', (select least((select min(day) from private.activity_days), (select min(day) from private.visit_days))),
+    'users', (select json_build_object(
+        'total', count(*),
+        'today', count(*) filter (where (p.created_at at time zone 'Europe/Bratislava')::date = t),
+        'd7',    count(*) filter (where (p.created_at at time zone 'Europe/Bratislava')::date > t - 7),
+        'd30',   count(*) filter (where (p.created_at at time zone 'Europe/Bratislava')::date > t - 30))
+      from public.profiles p),
+    'active', (select json_build_object(
+        'today',      count(distinct a.user_id) filter (where a.day = t),
+        'd7',         count(distinct a.user_id) filter (where a.day > t - 7),
+        'd30',        count(distinct a.user_id),
+        'app_d30',    count(distinct a.user_id) filter (where a.standalone),
+        'ios_d30',    count(distinct a.user_id) filter (where a.platform = 'ios'),
+        'android_d30',count(distinct a.user_id) filter (where a.platform = 'android'),
+        'desktop_d30',count(distinct a.user_id) filter (where a.platform in ('desktop', 'web')),
+        'returning_d7', count(distinct a.user_id) filter (where a.day > t - 7 and exists (
+            select 1 from private.activity_days b where b.user_id = a.user_id and b.day <= t - 7)))
+      from private.activity_days a where a.day > t - 30),
+    'visits', (select json_build_object(
+        'today',     coalesce(sum(v.n) filter (where v.kind = 'open' and v.day = t), 0),
+        'd7',        coalesce(sum(v.n) filter (where v.kind = 'open' and v.day > t - 7), 0),
+        'd30',       coalesce(sum(v.n) filter (where v.kind = 'open'), 0),
+        'invite_d30',coalesce(sum(v.n) filter (where v.kind = 'invite'), 0),
+        'ride_d30',  coalesce(sum(v.n) filter (where v.kind = 'ride'), 0),
+        'login_d30', coalesce(sum(v.n) filter (where v.kind = 'login'), 0))
+      from private.visit_days v where v.day > t - 30),
+    'rides', json_build_object(
+        'upcoming',        (select count(*) from public.rides r where r.ends_at > now()),
+        'public_upcoming', (select count(*) from public.rides r where r.ends_at > now() and r.visibility = 'public'),
+        'created_d7',      (select count(*) from public.rides r where r.created_at > now() - interval '7 days'),
+        'created_d30',     (select count(*) from public.rides r where r.created_at > now() - interval '30 days'),
+        'joins_d30',       (select count(*) from public.ride_participants rp join public.rides r on r.id = rp.ride_id
+                             where rp.joined_at > now() - interval '30 days' and rp.user_id <> r.host),
+        'avg_people_d30',  (select round(avg(c), 1) from (select count(*) c from public.ride_participants rp join public.rides r on r.id = rp.ride_id
+                             where r.ends_at < now() and r.ends_at > now() - interval '30 days' group by r.id) x),
+        'by_type_d30',     coalesce((select json_object_agg(x.type, x.c) from (select r.type, count(*) c from public.rides r
+                             where r.created_at > now() - interval '30 days' group by r.type) x), '{}'::json)),
+    'social', json_build_object(
+        'friendships', (select count(*) from public.friendships f where f.status = 'accepted'),
+        'pending',     (select count(*) from public.friendships f where f.status = 'pending'),
+        'push_users',  (select count(distinct ps.user_id) from public.push_subscriptions ps),
+        'invites_d30', (select count(*) from public.invites i where i.created_at > now() - interval '30 days')),
+    'series', (select json_agg(json_build_object(
+        'day',    g.d,
+        'active', (select count(*) from private.activity_days a where a.day = g.d),
+        'new',    (select count(*) from public.profiles p where (p.created_at at time zone 'Europe/Bratislava')::date = g.d),
+        'opens',  (select coalesce(sum(v.n), 0) from private.visit_days v where v.day = g.d and v.kind = 'open'),
+        'rides',  (select count(*) from public.rides r where (r.created_at at time zone 'Europe/Bratislava')::date = g.d)) order by g.d)
+      from (select (t - k) d from generate_series(nd - 1, 0, -1) k) g));
+end $$;
+
+revoke execute on function public.admin_names(), public.admin_metrics(int) from public, anon;
+grant execute on function public.admin_names(), public.admin_metrics(int) to authenticated;
+
+-- export mojich údajov: aj telefón a počet aktívnych dní
+create or replace function public.export_my_data() returns json
+language plpgsql volatile security definer set search_path = '' as $$
+declare me uuid := auth.uid();
+begin
+  if me is null then raise exception 'Nie si prihlásený.' using errcode = '42501'; end if;
+  perform private.hit('export', 5, interval '1 hour');
+  return json_build_object(
+    'exported_at', now(),
+    'account', (select json_build_object('id', u.id, 'email', u.email, 'created_at', u.created_at, 'last_sign_in_at', u.last_sign_in_at) from auth.users u where u.id = me),
+    'profile', (select row_to_json(p) from public.profiles p where p.id = me),
+    'phone', (select ph.phone from public.user_phones ph where ph.user_id = me),
+    'location', (select row_to_json(l) from public.user_locations l where l.user_id = me),
+    'friends', coalesce((select json_agg(json_build_object('name', op.display_name, 'status', f.status, 'since', f.created_at))
+                         from public.friendships f join public.profiles op on op.id = case when f.requester = me then f.addressee else f.requester end
+                         where me in (f.requester, f.addressee)), '[]'::json),
+    'shortcuts', coalesce((select json_agg(json_build_object('name', s.name, 'members', cardinality(s.members))) from public.shortcuts s where s.owner = me), '[]'::json),
+    'rides_hosted', coalesce((select json_agg(json_build_object('title', r.title, 'type', r.type, 'visibility', r.visibility, 'starts_at', r.starts_at,
+                                                                 'meet', r.meet_label, 'note', r.note) order by r.starts_at desc)
+                              from public.rides r where r.host = me), '[]'::json),
+    'rides_joined', coalesce((select json_agg(json_build_object('title', r.title, 'starts_at', r.starts_at, 'joined_at', p.joined_at) order by r.starts_at desc)
+                              from public.ride_participants p join public.rides r on r.id = p.ride_id where p.user_id = me and r.host <> me), '[]'::json),
+    'messages', coalesce((select json_agg(json_build_object('ride', r.title, 'text', m.body, 'at', m.created_at) order by m.created_at)
+                          from public.messages m join public.rides r on r.id = m.ride_id where m.user_id = me), '[]'::json),
+    'photos', coalesce((select json_agg(json_build_object('ride', r.title, 'file', ph.path, 'at', ph.created_at))
+                        from public.ride_photos ph join public.rides r on r.id = ph.ride_id where ph.user_id = me), '[]'::json),
+    'points', (select json_build_object('earned', up.earned, 'balance', up.balance) from private.user_points up where up.user_id = me),
+    'point_history', coalesce((select json_agg(json_build_object('kind', pa.kind, 'delta', pa.delta, 'reason', pa.reason, 'at', pa.created_at) order by pa.created_at)
+                               from public.point_adjustments pa where pa.user_id = me), '[]'::json),
+    'notification_choices', (select np.push from public.notify_prefs np where np.user_id = me),
+    'devices_with_notifications', (select count(*) from public.push_subscriptions ps where ps.user_id = me),
+    'active_days', (select count(*) from private.activity_days a where a.user_id = me));
+end $$;
+
+-- údržba: záznamy o aktivite najviac 400 dní
+select cron.unschedule('eb-ride-housekeeping') where exists (select 1 from cron.job where jobname = 'eb-ride-housekeeping');
+select cron.schedule('eb-ride-housekeeping', '23 3 * * *',
+  $$with a as (delete from private.rate_limits where bucket < now() - interval '2 days'),
+         b as (delete from private.activity_days where day < current_date - 400)
+    delete from public.invites where expires_at < now() - interval '30 days'$$);
 
 -- administrátor (doplň svoje ID z Authentication → Users):
 -- insert into private.admins (user_id) values ('<uuid>');

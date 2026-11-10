@@ -1,4 +1,5 @@
-/* EliteBiker Ride – administrácia.
+/* EliteBiker Ride, administrácia.
+   Ukazuje len poradie a mená používateľov a súhrnné čísla o používaní, žiadne osobné údaje.
    Prístup má len účet zapísaný ako admin v databáze a po prihlásení kódom z overovacej aplikácie (2FA).
    Všetky kontroly robí server – táto stránka len zobrazuje, čo server dovolí. */
 (function () {
@@ -6,7 +7,7 @@
   // stránka sa nesmie dať vložiť do cudzej stránky
   if (window.top !== window.self) { try { window.top.location.replace(window.location.href); } catch (e) { document.documentElement.innerHTML = ""; return; } }
 
-  var C = window.EB_CONFIG || {}, REWARDS = C.REWARDS || [];
+  var C = window.EB_CONFIG || {};
   var live = !!(C.SUPABASE_URL && C.SUPABASE_ANON_KEY && window.supabase);
   // samostatné prihlásenie len pre túto kartu (po zatvorení karty sa zabudne)
   var sb = live ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, {
@@ -14,7 +15,8 @@
   }) : null;
   var IDLE_MIN = 20;
   var TYPES = { cesta: "Cesta", gravel: "Gravel", mtb: "Horský", ebike: "E-bike", dirt: "Dirt / BMX" };
-  var A = { tab: "users", q: "", sort: "new", users: [], total: 0, ov: null, sel: null, user: null, rides: null, log: null, mode: "pw", email: "", sent: false, give: { sign: 1, amount: "", reason: "" }, sure: null, del: null };
+  function fresh(email) { return { mode: "pw", email: email || "", sent: false, days: 30, metric: "active", table: false, q: "", m: null, names: null }; }
+  var A = fresh("");
 
   /* ---------- pomocníci ---------- */
   function $(id) { return document.getElementById(id); }
@@ -22,26 +24,11 @@
   var tt; function toast(m, bad) { var t = $("toast"); t.querySelector("span").innerHTML = m; t.classList.toggle("bad", !!bad); t.classList.add("show"); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove("show"); }, 3600); }
   function err(e) { console.error(e); toast(esc(e && e.message || "Niečo sa pokazilo."), true); }
   function d(iso) { return iso ? new Date(iso).toLocaleDateString("sk-SK", { day: "numeric", month: "numeric", year: "numeric" }) : "nie"; }
-  function dt(iso) { return iso ? new Date(iso).toLocaleString("sk-SK", { day: "numeric", month: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "nie"; }
-  function ago(iso) {
-    if (!iso) return "nikdy";
-    var m = Math.round((Date.now() - new Date(iso)) / 6e4);
-    if (m < 60) return m <= 1 ? "práve teraz" : "pred " + m + " min";
-    var h = Math.round(m / 60); if (h < 24) return "pred " + h + " h";
-    var dd = Math.round(h / 24); return dd === 1 ? "včera" : dd < 31 ? "pred " + dd + " dňami" : d(iso);
-  }
   function n(x) { return Number(x || 0).toLocaleString("sk-SK"); }
-  function memberNo(id) { return String(id || "").replace(/-/g, "").slice(0, 8).toUpperCase(); }
-  function avatar(u, cls) {
-    if (u.avatar_url) return '<span class="aav ' + (cls || "") + '"><img src="' + esc(u.avatar_url) + '" alt=""></span>';
-    var t = (u.display_name || u.email || "?").charAt(0).toUpperCase();
-    return '<span class="aav init ' + (cls || "") + '">' + esc(t) + "</span>";
-  }
   function brand() { return '<div class="brand"><img src="' + esc(C.LOGO_URL) + '" alt="EliteBiker"><span class="wm">ELITEBIKER</span><span class="ride">Ride</span></div>'; }
   document.addEventListener("error", function (e) { var t = e.target; if (t && t.tagName === "IMG" && t.parentNode && t.parentNode.classList && t.parentNode.classList.contains("brand")) t.parentNode.classList.add("noimg"); }, true);
   function spin(b) { if (!b) return; b.disabled = true; b.dataset.t = b.innerHTML; b.innerHTML = '<span class="spin-sm"></span>'; }
   function unspin(b) { if (!b) return; b.disabled = false; b.innerHTML = b.dataset.t || "OK"; }
-  function level(earned) { return earned >= 2000 ? "Zlatý" : "Strieborný"; }
 
   function rpc(name, args) {
     if (!live) return Demo.rpc(name, args || {});
@@ -160,7 +147,7 @@
     }).catch(function (e) { renderLogin(e.message); });
   }
   function logout(msg) {
-    var done = function () { A = { tab: "users", q: "", sort: "new", users: [], mode: "pw", email: A.email, give: { sign: 1, amount: "", reason: "" } }; renderLogin(msg); };
+    var done = function () { A = fresh(A.email); renderLogin(msg); };
     if (!live) return done();
     sb.auth.signOut().then(done, done);
   }
@@ -170,203 +157,138 @@
   setInterval(function () { if (live && A.dash && Date.now() - lastAct > IDLE_MIN * 6e4) { A.dash = false; logout("Odhlásili sme ťa po " + IDLE_MIN + " minútach nečinnosti."); } }, 30000);
 
   /* ---------- prehľad ---------- */
+  var METRICS = [["active", "Aktívni používatelia", "aktívnych"], ["opens", "Otvorenia appky", "otvorení"], ["new", "Noví používatelia", "nových"], ["rides", "Vytvorené jazdy", "jázd"]];
+  var RANGES = [[7, "7 dní"], [30, "30 dní"], [90, "90 dní"]];
+  function pct(a, b) { return b ? Math.round(a / b * 100) + " %" : "0 %"; }
+  function dm(iso) { var x = new Date(iso + "T12:00:00"); return x.getDate() + ". " + (x.getMonth() + 1) + "."; }
+  function dlong(iso) { var x = new Date(iso + "T12:00:00"); return x.toLocaleDateString("sk-SK", { weekday: "short", day: "numeric", month: "numeric" }); }
+  function tile(label, val, sub) { return '<div class="adm-stat"><small>' + label + "</small><b>" + val + "</b>" + (sub ? "<em>" + sub + "</em>" : "") + "</div>"; }
   function dashboard() {
     A.dash = true;
-    $("root").innerHTML = '<header class="adm-top">' + brand() + '<span class="adm-title">Administrácia</span><span class="grow"></span><span class="adm-who">' + esc(A.email || A.who || "") + '</span><button class="btn sm gh" data-a="logout">Odhlásiť</button></header>' +
-      '<main class="adm-main"><section class="adm-stats" id="ov"></section>' +
-      '<nav class="adm-tabs" id="tabs"></nav><section id="pane"></section></main><aside class="adm-drawer" id="drawer" aria-hidden="true"></aside><div class="adm-scrim" id="scrim" data-a="close"></div>';
-    loadOverview(); drawTabs(); openTab(A.tab);
+    $("root").innerHTML = '<header class="adm-top">' + brand() + '<span class="adm-title">Administrácia</span><span class="grow"></span><span class="adm-who">' + esc(A.email || A.who || "") + '</span><button class="btn sm gh" data-a="reload" aria-label="Obnoviť">Obnoviť</button><button class="btn sm gh" data-a="logout">Odhlásiť</button></header>' +
+      '<main class="adm-main" id="dash"><div class="adm-load"><div class="spin"></div>Načítavam…</div></main><div class="adm-tip" id="tip" role="status" hidden></div>';
+    load();
   }
-  function loadOverview() {
-    rpc("admin_overview").then(function (o) {
-      A.ov = o;
-      var cards = [["Používatelia", o.users, "+" + n(o.users_7d) + " za 7 dní"], ["Aktívni", o.active_30d, "prihlásení za 30 dní"], ["Nadchádzajúce jazdy", o.rides_upcoming, n(o.public_upcoming) + " verejných"],
-        ["Odjazdené", o.rides_30d, "jázd za 30 dní"], ["Body v obehu", o.points_balance, "zostatky všetkých"], ["Vydané odmeny", o.rewards_30d, "za 30 dní"]];
-      $("ov").innerHTML = cards.map(function (c) { return '<div class="adm-stat"><small>' + c[0] + "</small><b>" + n(c[1]) + "</b><em>" + esc(c[2]) + "</em></div>"; }).join("");
+  function load() {
+    Promise.all([rpc("admin_metrics", { p_days: A.days }), A.names ? Promise.resolve(A.names) : rpc("admin_names")]).then(function (x) {
+      A.m = x[0]; A.names = x[1] || []; draw();
     }).catch(err);
   }
-  function drawTabs() {
-    $("tabs").innerHTML = [["users", "Používatelia a body"], ["rides", "Verejné jazdy"], ["log", "Záznam zmien"]].map(function (t) {
-      return '<button data-a="tab" data-t="' + t[0] + '" class="' + (A.tab === t[0] ? "on" : "") + '">' + t[1] + "</button>"; }).join("");
+  function draw() {
+    var m = A.m, u = m.users, ac = m.active, v = m.visits, r = m.rides, so = m.social;
+    var since = m.since ? "Údaje o aktivite zbierame od " + d(m.since + "T12:00:00") + "." : "Údaje o aktivite sa začnú zbierať s prvým otvorením appky.";
+    var html = '<p class="adm-lead">Súhrnné čísla o používaní appky. Osobné údaje používateľov tu nie sú, len poradie a mená. ' + since + "</p>" +
+      '<h2 class="adm-h2">Dnes</h2><section class="adm-stats s4">' +
+        tile("Aktívni dnes", n(ac.today), "prihlásení, čo appku otvorili") + tile("Otvorenia appky", n(v.today), "aj neprihlásení") +
+        tile("Noví používatelia", n(u.today), "zaregistrovaní dnes") + tile("Používatelia spolu", n(u.total), "+" + n(u.d7) + " za 7 dní") + "</section>" +
+      '<h2 class="adm-h2">Posledné dni</h2><section class="adm-stats s4">' +
+        tile("Aktívni za 7 dní", n(ac.d7), pct(ac.d7, u.total) + " zo všetkých") + tile("Aktívni za 30 dní", n(ac.d30), pct(ac.d30, u.total) + " zo všetkých") +
+        tile("Vracajú sa", n(ac.returning_d7), "aktívni teraz aj predtým") + tile("Appka na ploche", n(ac.app_d30), pct(ac.app_d30, ac.d30) + " aktívnych za 30 dní") +
+        tile("Otvorenia za 7 dní", n(v.d7), "") + tile("Otvorenia za 30 dní", n(v.d30), "") +
+        tile("Cez pozvánku", n(v.invite_d30), "otvorenia za 30 dní") + tile("Cez odkaz na jazdu", n(v.ride_d30), "otvorenia za 30 dní") + "</section>" +
+      '<section class="adm-card chart"><div class="adm-ch-head"><div class="adm-seg" role="tablist" aria-label="Čo zobraziť">' +
+        METRICS.map(function (x) { return '<button role="tab" aria-selected="' + (A.metric === x[0]) + '" data-a="metric" data-v="' + x[0] + '" class="' + (A.metric === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>" +
+        '<div class="adm-seg sm" aria-label="Obdobie">' + RANGES.map(function (x) { return '<button data-a="days" data-v="' + x[0] + '" class="' + (A.days === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div></div>" +
+        '<div class="adm-ch-title"><b id="chTitle"></b><button class="link-plain sm" data-a="table">' + (A.table ? "Zobraziť graf" : "Zobraziť ako tabuľku") + "</button></div>" +
+        '<div id="chart" class="adm-chart"></div></section>' +
+      '<div class="adm-grid2"><section class="adm-card"><h3>Jazdy</h3>' +
+        kv("Naplánované jazdy", n(r.upcoming)) + kv("z toho verejné", n(r.public_upcoming)) + kv("Vytvorené za 7 dní", n(r.created_d7)) + kv("Vytvorené za 30 dní", n(r.created_d30)) +
+        kv("Pridania k cudzím jazdám za 30 dní", n(r.joins_d30)) + kv("Priemerne ľudí na jazde", r.avg_people_d30 == null ? "zatiaľ nič" : String(r.avg_people_d30).replace(".", ",")) +
+        '<h4>Typy jázd za 30 dní</h4>' + hbars(Object.keys(TYPES).map(function (k) { return [TYPES[k], (r.by_type_d30 || {})[k] || 0]; })) + "</section>" +
+      '<section class="adm-card"><h3>Zariadenia aktívnych za 30 dní</h3>' +
+        hbars([["iPhone", ac.ios_d30], ["Android", ac.android_d30], ["Počítač a iné", ac.desktop_d30]]) +
+        '<h3 style="margin-top:22px">Partia a upozornenia</h3>' +
+        kv("Priateľstvá", n(so.friendships)) + kv("Čakajúce žiadosti", n(so.pending)) + kv("Ľudia so zapnutými upozorneniami", n(so.push_users) + " (" + pct(so.push_users, u.total) + ")") +
+        kv("Vytvorené pozvánky za 30 dní", n(so.invites_d30)) + "</section></div>" +
+      '<section class="adm-card"><div class="adm-names-head"><h3>Používatelia podľa poradia <small>' + n(A.names.length) + "</small></h3>" +
+        '<input class="inp" id="nq" type="search" placeholder="Hľadať meno" autocomplete="off" value="' + esc(A.q) + '"></div><ol class="adm-names" id="names"></ol></section>';
+    $("dash").innerHTML = html;
+    drawNames(); drawChart();
+    var q = $("nq"); q.oninput = function () { A.q = q.value; drawNames(); };
   }
-  function openTab(t) {
-    A.tab = t; drawTabs();
-    if (t === "users") { drawUsersShell(); loadUsers(); }
-    if (t === "rides") { $("pane").innerHTML = '<div class="adm-load sm"><div class="spin"></div></div>'; rpc("admin_rides").then(function (r) { A.rides = r; drawRides(); }).catch(err); }
-    if (t === "log") { $("pane").innerHTML = '<div class="adm-load sm"><div class="spin"></div></div>'; rpc("admin_log_list", { p_limit: 200 }).then(function (l) { A.log = l; drawLog(); }).catch(err); }
+  function kv(k, v) { return '<div class="adm-kv"><span>' + k + "</span><b>" + v + "</b></div>"; }
+  function hbars(rows) {
+    var mx = Math.max.apply(null, rows.map(function (x) { return x[1]; }).concat([1]));
+    return '<div class="adm-hbars">' + rows.map(function (x) { return '<div class="adm-hbar"><span>' + esc(x[0]) + '</span><i><s style="width:' + (x[1] ? Math.max(2, x[1] / mx * 100) : 0) + '%"></s></i><b>' + n(x[1]) + "</b></div>"; }).join("") + "</div>";
   }
-
-  /* ---------- používatelia ---------- */
-  function drawUsersShell() {
-    $("pane").innerHTML = '<div class="adm-bar"><div class="search">' + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>' +
-      '<input id="uq" placeholder="Meno, e-mail, mesto, Instagram alebo číslo člena" value="' + esc(A.q) + '" autocomplete="off"></div>' +
-      '<select class="inp" id="us"><option value="new">Najnovší</option><option value="points">Najviac bodov</option><option value="name">Podľa mena</option></select></div><div id="ulist"></div>';
-    $("us").value = A.sort;
-    var q = $("uq"), t;
-    q.oninput = function () { clearTimeout(t); t = setTimeout(function () { A.q = q.value; loadUsers(); }, 300); };
-    $("us").onchange = function () { A.sort = this.value; loadUsers(); };
+  function drawNames() {
+    var el = $("names"); if (!el) return;
+    var q = (A.q || "").trim().toLowerCase(), norm = function (t) { return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); };
+    var l = A.names.filter(function (x) { return !q || norm(x.meno).indexOf(norm(q)) > -1; });
+    el.innerHTML = l.length ? l.map(function (x) { return '<li><span class="no">' + x.poradie + '.</span><span class="nm">' + esc(x.meno) + "</span></li>"; }).join("") : '<li class="adm-empty">' + (A.names.length ? "Nikto také meno nemá." : "Zatiaľ žiadni používatelia.") + "</li>";
   }
-  function loadUsers() {
-    var el = $("ulist"); if (!el) return;
-    rpc("admin_users", { p_q: A.q, p_sort: A.sort, p_limit: 100, p_offset: 0 }).then(function (rows) {
-      A.users = rows || []; A.total = A.users.length ? A.users[0].total : 0; drawUsers();
-    }).catch(err);
+  // stĺpcový graf jednej veličiny po dňoch; popis pri prechode myšou alebo ťuknutí
+  function drawChart() {
+    var el = $("chart"), mt = METRICS.filter(function (x) { return x[0] === A.metric; })[0], S = A.m.series || [];
+    $("chTitle").textContent = mt[1] + " po dňoch, posledných " + A.days + " dní";
+    var vals = S.map(function (x) { return +x[A.metric] || 0; });
+    if (A.table) {
+      el.innerHTML = '<table class="adm-tbl"><thead><tr><th>Deň</th><th>' + mt[1] + "</th></tr></thead><tbody>" + S.slice().reverse().map(function (x) { return "<tr><td>" + dlong(x.day) + "</td><td>" + n(x[A.metric]) + "</td></tr>"; }).join("") + "</tbody></table>";
+      return;
+    }
+    var W = Math.max(280, el.clientWidth || 600), H = 220, L = 34, R = 6, T = 10, B = 26, pw = W - L - R, ph = H - T - B;
+    var mx = Math.max.apply(null, vals.concat([0])), step = niceStep(mx), top = Math.max(step * Math.ceil(mx / step), step * 2);
+    var y = function (v) { return T + ph - v / top * ph; }, bw = pw / S.length, gap = S.length > 60 ? 1 : 2, w = Math.max(1, bw - gap);
+    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H + '" role="img" aria-label="' + esc(mt[1]) + ' po dňoch">';
+    for (var g = 0; g <= top; g += step) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(g) + '" y2="' + y(g) + '" class="' + (g ? "gl" : "base") + '"/><text x="' + (L - 6) + '" y="' + (y(g) + 4) + '" class="yl">' + n(g) + "</text>";
+    var every = Math.ceil(S.length / Math.max(2, Math.floor(pw / 64)));
+    S.forEach(function (x, i) {
+      var v = vals[i], X = L + i * bw + gap / 2, Y = y(v), h = T + ph - Y, rr = Math.min(4, w / 2, h);
+      if (v > 0) svg += '<path class="bar" data-i="' + i + '" d="M' + X + "," + (T + ph) + "V" + (Y + rr) + "Q" + X + "," + Y + " " + (X + rr) + "," + Y + "H" + (X + w - rr) + "Q" + (X + w) + "," + Y + " " + (X + w) + "," + (Y + rr) + "V" + (T + ph) + 'Z"/>';
+      if ((S.length - 1 - i) % every === 0) svg += '<text x="' + (L + i * bw + bw / 2) + '" y="' + (H - 8) + '" class="xl">' + dm(x.day) + "</text>";
+    });
+    S.forEach(function (x, i) { svg += '<rect class="hit" data-i="' + i + '" x="' + (L + i * bw) + '" y="' + T + '" width="' + bw + '" height="' + ph + '"/>'; });
+    svg += "</svg>";
+    el.innerHTML = (mx ? "" : '<p class="adm-nodata">Zatiaľ žiadne údaje za toto obdobie.</p>') + svg;
+    var tip = $("tip"), show = function (t) {
+      var i = +t.dataset.i, x = S[i]; [].forEach.call(el.querySelectorAll(".bar.on"), function (b) { b.classList.remove("on"); });
+      var b = el.querySelector('.bar[data-i="' + i + '"]'); if (b) b.classList.add("on");
+      tip.innerHTML = "<small>" + dlong(x.day) + "</small><b>" + n(vals[i]) + "</b> " + mt[2];
+      var rc = t.getBoundingClientRect(); tip.hidden = false;
+      var tw = tip.offsetWidth, lx = Math.min(window.innerWidth - tw - 8, Math.max(8, rc.left + rc.width / 2 - tw / 2));
+      var topY = (b ? b.getBoundingClientRect().top : rc.bottom) - tip.offsetHeight - 8;
+      tip.style.left = lx + "px"; tip.style.top = Math.max(8, topY) + "px";
+    }, hide = function () { tip.hidden = true; [].forEach.call(el.querySelectorAll(".bar.on"), function (b) { b.classList.remove("on"); }); };
+    [].forEach.call(el.querySelectorAll(".hit"), function (h) { h.onmouseenter = function () { show(h); }; h.onclick = function () { show(h); }; });
+    el.onmouseleave = hide;
   }
-  function drawUsers() {
-    var el = $("ulist"); if (!el) return;
-    if (!A.users.length) { el.innerHTML = '<div class="adm-empty">Nikoho sme nenašli.</div>'; return; }
-    el.innerHTML = '<div class="adm-count">' + n(A.total) + " " + (A.total === 1 ? "používateľ" : A.total < 5 ? "používatelia" : "používateľov") + (A.total > A.users.length ? " · zobrazených " + A.users.length + ", spresni hľadanie" : "") + "</div>" +
-      '<div class="utable"><div class="uhead"><span>Používateľ</span><span>Mesto · vek</span><span>Registrácia</span><span>Naposledy</span><span>Jazdy</span><span class="r">Body</span></div>' +
-      A.users.map(function (u) {
-        return '<button class="urow' + (A.sel === u.id ? " on" : "") + '" data-a="user" data-id="' + u.id + '">' +
-          '<span class="ucell who">' + avatar(u) + '<span class="grow"><b>' + esc(u.display_name || "bez mena") + "</b><small>" + esc(u.email || "") + "</small></span></span>" +
-          '<span class="ucell"><small class="lbl">Mesto</small>' + esc([u.city, u.age ? u.age + " r." : ""].filter(Boolean).join(" · ") || "nevyplnené") + "</span>" +
-          '<span class="ucell"><small class="lbl">Registrácia</small>' + d(u.created_at) + "</span>" +
-          '<span class="ucell"><small class="lbl">Naposledy</small>' + ago(u.last_sign_in_at) + "</span>" +
-          '<span class="ucell"><small class="lbl">Jazdy</small>' + n(u.joined + u.hosted) + (u.hosted ? ' <small class="mu">(' + u.hosted + " org.)</small>" : "") + "</span>" +
-          '<span class="ucell pts"><b>' + n(u.balance) + '</b><small>' + level(u.earned) + "</small></span></button>";
-      }).join("") + "</div>";
-  }
-
-  /* ---------- detail používateľa ---------- */
-  function openUser(id) {
-    A.sel = id; A.give = { sign: 1, amount: "", reason: "" }; A.sure = null;
-    var dr = $("drawer"); dr.innerHTML = '<div class="adm-load sm"><div class="spin"></div></div>'; dr.classList.add("open"); dr.setAttribute("aria-hidden", "false"); $("scrim").classList.add("on");
-    drawUsers();
-    rpc("admin_user", { p_user: id }).then(function (u) { A.user = u; drawUser(); }).catch(function (e) { closeDrawer(); err(e); });
-  }
-  function closeDrawer() { A.sel = null; A.user = null; var dr = $("drawer"); if (dr) { dr.classList.remove("open"); dr.setAttribute("aria-hidden", "true"); } var s = $("scrim"); if (s) s.classList.remove("on"); drawUsers(); }
-  function drawUser() {
-    var u = A.user, p = u.points, g = A.give, amt = parseInt(g.amount, 10) || 0;
-    var reasons = g.sign > 0 ? ["Nákup v predajni", "Nákup v e-shope", "Pomoc na akcii", "Súťaž", "Oprava bodov"] : ["Oprava bodov", "Zneužitie", "Zrušená jazda"];
-    $("drawer").innerHTML = '<div class="dr-top"><button class="icb" data-a="close" aria-label="Zavrieť"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button><b>Detail používateľa</b></div>' +
-      '<div class="dr-body"><div class="dr-head">' + avatar(u, "lg") + '<div class="grow"><h2>' + esc(u.display_name || "bez mena") + "</h2><p>" + esc(u.email || "") + (u.confirmed ? "" : ' · <span class="warn">e-mail nepotvrdený</span>') + '</p><p class="mu">člen č. <b>' + memberNo(u.id) + "</b></p></div></div>" +
-      '<div class="dr-kv">' + [["Mesto", u.city], ["Vek", u.age], ["Instagram", u.ig_username ? "@" + u.ig_username : ""], ["Facebook", u.fb_name], ["Na čom jazdí", (u.bike_types || []).map(function (t) { return TYPES[t] || t; }).join(", ")],
-        ["Registrácia", dt(u.created_at)], ["Naposledy prihlásený", u.last_sign_in_at ? dt(u.last_sign_in_at) : "nikdy"], ["Priatelia", u.friends], ["Nadchádzajúce jazdy", u.upcoming]]
-        .filter(function (x) { return x[1] !== null && x[1] !== undefined && x[1] !== ""; }).map(function (x) { return "<div><span>" + x[0] + "</span><b>" + esc(x[1]) + "</b></div>"; }).join("") + "</div>" +
-      '<div class="dr-pts"><div class="big"><small>Zostatok</small><b>' + n(p.balance) + ' <em>bodov</em></b><span class="lv">★ ' + level(p.earned) + " člen · celkovo získal " + n(p.earned) + "</span></div>" +
-      '<div class="brk"><div><span>Spoločné jazdy</span><b>' + p.joined + " × 20 = " + n(p.joined * 20) + "</b></div><div><span>Zorganizované jazdy</span><b>" + p.hosted + " × 50 = " + n(p.hosted * 50) + "</b></div><div><span>Fotky z jázd</span><b>" + p.photos + " × 10 = " + n(p.photos * 10) + "</b></div><div><span>Bonusy od EliteBikeru</span><b>" + (p.bonus >= 0 ? "+" : "") + n(p.bonus) + "</b></div><div><span>Vydané odmeny</span><b>−" + n(p.spent) + "</b></div></div></div>" +
-      '<h3>Pridať alebo odobrať body</h3><form id="gf" class="dr-give" novalidate><div class="seg"><button type="button" data-a="sign" data-s="1" class="' + (g.sign > 0 ? "on" : "") + '">＋ Pridať</button><button type="button" data-a="sign" data-s="-1" class="' + (g.sign < 0 ? "on" : "") + '">− Odobrať</button></div>' +
-      '<div class="quick">' + [50, 100, 200, 500].map(function (x) { return '<button type="button" data-a="amt" data-v="' + x + '" class="' + (amt === x ? "on" : "") + '">' + x + "</button>"; }).join("") + "</div>" +
-      '<input class="inp" id="g-amt" inputmode="numeric" placeholder="Počet bodov" value="' + esc(g.amount) + '">' +
-      '<input class="inp" id="g-why" maxlength="200" placeholder="Dôvod (uvidí ho aj používateľ)" value="' + esc(g.reason) + '" style="margin-top:8px">' +
-      '<div class="quick">' + reasons.map(function (r) { return '<button type="button" data-a="why" data-v="' + esc(r) + '">' + esc(r) + "</button>"; }).join("") + "</div>" +
-      '<button class="btn full' + (g.sign < 0 ? " neg" : "") + '" type="submit">' + (g.sign > 0 ? "Pridať" : "Odobrať") + (amt ? " " + n(amt) + " bodov" : " body") + "</button></form>" +
-      '<h3>Vydať odmenu</h3><p class="mu sm">Body sa odpočítajú zo zostatku. Ťukni dvakrát na potvrdenie.</p><div class="dr-rw">' + REWARDS.map(function (r, i) {
-        var ok = p.balance >= r[3], sure = A.sure === i;
-        return '<div class="rw"><i>' + r[0] + '</i><div class="grow"><b>' + esc(r[1]) + "</b><small>" + esc(r[2]) + '</small></div><button class="btn sm ' + (sure ? "neg" : ok ? "" : "gh") + '" data-a="reward" data-i="' + i + '"' + (ok ? "" : " disabled") + ">" + (sure ? "Potvrdiť −" + r[3] : r[3] + " b") + "</button></div>"; }).join("") + "</div>" +
-      '<h3>História bodov</h3>' + (u.history.length ? '<div class="dr-hist">' + u.history.map(function (h) {
-        return '<div><span class="grow"><b>' + esc(h.reason) + "</b><small>" + dt(h.at) + (h.admin ? " · " + esc(h.admin) : "") + (h.kind === "reward" ? " · odmena" : "") + '</small></span><em class="' + (h.delta < 0 ? "neg" : "pos") + '">' + (h.delta > 0 ? "+" : "−") + n(Math.abs(h.delta)) + "</em></div>"; }).join("") + "</div>" : '<p class="mu sm">Zatiaľ žiadne ručné zmeny.</p>') + "</div>";
-    var f = $("gf");
-    $("g-amt").oninput = function () { A.give.amount = this.value.replace(/[^\d]/g, ""); };
-    $("g-why").oninput = function () { A.give.reason = this.value; };
-    f.onsubmit = function (e) {
-      e.preventDefault();
-      var v = parseInt(String($("g-amt").value).replace(/[^\d]/g, ""), 10), why = $("g-why").value.trim(), b = f.querySelector("button[type=submit]");
-      if (!(v >= 1 && v <= 100000)) { toast("Zadaj počet bodov (1 až 100 000).", true); return; }
-      if (!why) { toast("Napíš dôvod. Uvidí ho aj používateľ.", true); $("g-why").focus(); return; }
-      spin(b);
-      rpc("admin_adjust_points", { p_user: u.id, p_delta: v * A.give.sign, p_reason: why, p_kind: "bonus" }).then(function () {
-        toast((A.give.sign > 0 ? "Pridané" : "Odobraté") + " <b>" + n(v) + "</b> bodov: " + esc(u.display_name || u.email) + ".");
-        A.give = { sign: 1, amount: "", reason: "" }; afterChange(u.id);
-      }).catch(function (e2) { unspin(b); err(e2); });
-    };
-  }
-  function afterChange(id) {
-    loadOverview(); loadUsers();
-    rpc("admin_user", { p_user: id }).then(function (u) { if (A.sel === id) { A.user = u; drawUser(); } }).catch(err);
-  }
-  function giveReward(i, btn) {
-    var u = A.user, r = REWARDS[i];
-    if (A.sure !== i) { A.sure = i; drawUser(); return; }
-    spin(btn);
-    rpc("admin_adjust_points", { p_user: u.id, p_delta: r[3], p_reason: r[1], p_kind: "reward" }).then(function () {
-      A.sure = null; toast("Odmena vydaná: <b>" + esc(r[1]) + "</b> (−" + r[3] + " b)."); afterChange(u.id);
-    }).catch(function (e) { A.sure = null; drawUser(); err(e); });
-  }
-
-  /* ---------- verejné jazdy ---------- */
-  function drawRides() {
-    var r = A.rides, c = r.counts;
-    $("pane").innerHTML = '<div class="adm-rc"><div><b>' + n(c.public) + '</b><small>🌍 verejných</small></div><div><b>' + n(c.friends) + '</b><small>👥 pre partiu</small></div><div><b>' + n(c.private) + '</b><small>🔒 len pre vybraných</small></div></div>' +
-      '<p class="mu sm" style="margin:8px 2px 14px">Jazdy pre partiu a pre vybraných sú súkromné, administrácia vidí len ich počet. Verejnú jazdu s nevhodným obsahom môžeš zrušiť.</p>' +
-      (r.public.length ? r.public.map(function (x) {
-        var del = A.del === x.id;
-        return '<div class="adm-ride"><div class="grow"><b>' + esc(x.title) + '</b><small>' + esc(TYPES[x.type] || x.type) + " · " + dt(x.starts_at) + " · " + esc(x.meet_label || "") + "</small><small>organizuje <b>" + esc(x.host_name || "?") + "</b> · " + x.people + (x.max_people ? "/" + x.max_people : "") + " ľudí</small>" +
-          (x.note ? '<p class="nt">' + esc(x.note.slice(0, 220)) + (x.note.length > 220 ? "…" : "") + "</p>" : "") +
-          (del ? '<form class="delf" data-id="' + x.id + '"><input class="inp" placeholder="Dôvod zrušenia (zapíše sa do záznamu)" maxlength="200" required><div class="row2"><button type="button" class="btn sm gh" data-a="del-cancel">Späť</button><button class="btn sm neg" type="submit">Zrušiť jazdu</button></div></form>' : "") + "</div>" +
-          (del ? "" : '<button class="btn sm gh" data-a="del" data-id="' + x.id + '">Zrušiť</button>') + "</div>"; }).join("")
-        : '<div class="adm-empty">Žiadne nadchádzajúce verejné jazdy.</div>');
-    var f = document.querySelector(".delf");
-    if (f) { var i = f.querySelector("input"); i.focus(); f.onsubmit = function (e) {
-      e.preventDefault(); var why = i.value.trim(), b = f.querySelector("button[type=submit]");
-      if (!why) { toast("Napíš dôvod.", true); return; }
-      spin(b);
-      rpc("admin_delete_ride", { p_ride: f.dataset.id, p_reason: why }).then(function () { A.del = null; toast("Jazda zrušená."); loadOverview(); openTab("rides"); }).catch(function (e2) { unspin(b); err(e2); });
-    }; }
-  }
-
-  /* ---------- záznam zmien ---------- */
-  function drawLog() {
-    var L = A.log || [];
-    $("pane").innerHTML = L.length ? '<div class="adm-log">' + L.map(function (l) {
-      var x = l.detail || {}, who = esc(l.target_name || "zmazaný účet"), t;
-      if (l.action === "points") t = (x.delta > 0 ? "+" : "−") + n(Math.abs(x.delta)) + " b pre <b>" + who + "</b>: " + esc(x.reason);
-      else if (l.action === "reward") t = "Odmena <b>" + esc(x.reason) + "</b> (−" + n(Math.abs(x.delta)) + " b) pre <b>" + who + "</b>";
-      else if (l.action === "ride_delete") t = "Zrušená verejná jazda „" + esc(x.title) + "“ od <b>" + who + "</b>: " + esc(x.reason);
-      else t = esc(l.action);
-      return '<div><small>' + dt(l.at) + " · " + esc(l.admin || "admin") + "</small><p>" + t + "</p></div>"; }).join("") + "</div>"
-      : '<div class="adm-empty">Zatiaľ žiadne zmeny.</div>';
-  }
+  function niceStep(mx) { if (mx <= 4) return 1; var raw = mx / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
+  var rz; window.addEventListener("resize", function () { clearTimeout(rz); rz = setTimeout(function () { if (A.m && $("chart")) drawChart(); }, 150); });
+  document.addEventListener("scroll", function () { var t = $("tip"); if (t) t.hidden = true; }, true);
 
   /* ---------- udalosti ---------- */
   document.addEventListener("click", function (e) {
-    var el = e.target.closest("[data-a]"); if (!el) return;
+    var el = e.target.closest("[data-a]"); if (!el) { if (!e.target.closest(".hit")) { var t = $("tip"); if (t) t.hidden = true; } return; }
     var a = el.dataset.a;
     switch (a) {
       case "mode": A.mode = el.dataset.m; A.sent = false; renderLogin(); break;
       case "logout": logout(); break;
-      case "tab": closeDrawer(); openTab(el.dataset.t); break;
-      case "user": openUser(el.dataset.id); break;
-      case "close": closeDrawer(); break;
-      case "sign": A.give.sign = +el.dataset.s; A.give.amount = $("g-amt").value; A.give.reason = $("g-why").value; drawUser(); break;
-      case "amt": A.give.amount = el.dataset.v; A.give.reason = $("g-why").value; drawUser(); break;
-      case "why": A.give.amount = $("g-amt").value; A.give.reason = el.dataset.v; drawUser(); break;
-      case "reward": giveReward(+el.dataset.i, el); break;
-      case "del": A.del = el.dataset.id; drawRides(); break;
-      case "del-cancel": A.del = null; drawRides(); break;
+      case "reload": A.names = null; $("dash").innerHTML = '<div class="adm-load"><div class="spin"></div>Načítavam…</div>'; load(); break;
+      case "metric": A.metric = el.dataset.v; draw(); break;
+      case "table": A.table = !A.table; draw(); break;
+      case "days": A.days = +el.dataset.v; rpc("admin_metrics", { p_days: A.days }).then(function (m) { A.m = m; draw(); }).catch(err); break;
     }
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && A.sel) closeDrawer(); });
 
   /* ---------- skúšobný režim (bez servera) ---------- */
   var Demo = {
-    users: [["Martin Markovič", "martin@test.sk", "Považská Bystrica", 34, "martin.rides", 14, 4, 6, 100, 50], ["Adam Kováč", "adam@test.sk", "Púchov", 31, "adam.rides", 9, 1, 3, 0, 0], ["Lucia Malá", "lucia@test.sk", "Žilina", 26, null, 22, 6, 5, 200, 300], ["Tomáš Baran", "tomas@test.sk", "Ilava", 41, null, 2, 0, 0, 0, 0]].map(function (x, i) {
-      var earned = x[5] * 20 + x[6] * 50 + x[7] * 10 + x[8];
-      return { id: "0000000" + i + "-aaaa-bbbb-cccc-00000000000" + i, display_name: x[0], email: x[1], city: x[2], age: x[3], ig_username: x[4], fb_name: null, avatar_url: null, created_at: new Date(Date.now() - (i + 2) * 864e5 * 9).toISOString(), last_sign_in_at: new Date(Date.now() - i * 36e5 * 7).toISOString(), joined: x[5], hosted: x[6], photos: x[7], bonus: x[8], spent: x[9], earned: earned, balance: earned - x[9], hist: [] };
-    }),
-    log: [], rides: [{ id: "r1", title: "Večerný okruh Strážov pre všetkých", type: "mtb", starts_at: new Date(Date.now() + 2 * 864e5).toISOString(), meet_label: "Parkovisko pod Strážovom", host_name: "Lucia Malá", people: 3, max_people: 10, note: "Pridať sa môže hocikto." }],
+    names: ["Martin Markovič", "Adam Kováč", "Lucia Malá", "Peter Horváth", "Jana Nováková", "Tomáš Baláž", "Marek Varga", "Zuzana Tóthová", "Michal Kollár", "Eva Šimková", "Juraj Lukáč", "Simona Králiková"],
     rpc: function (name, a) {
-      var D = Demo, wait = function (v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 150); }); }, U = function (id) { return D.users.filter(function (u) { return u.id === id; })[0]; };
-      if (name === "admin_overview") return wait({ users: D.users.length, users_7d: 1, active_30d: 3, rides_upcoming: 5, public_upcoming: D.rides.length, rides_30d: 11, points_balance: D.users.reduce(function (s, u) { return s + u.balance; }, 0), rewards_30d: D.log.filter(function (l) { return l.action === "reward"; }).length });
-      if (name === "admin_users") {
-        var q = (a.p_q || "").toLowerCase(), l = D.users.filter(function (u) { return !q || (u.display_name + " " + u.email + " " + u.city + " " + u.id.replace(/-/g, "")).toLowerCase().indexOf(q.replace(/-/g, "")) > -1; });
-        if (a.p_sort === "points") l.sort(function (x, y) { return y.balance - x.balance; }); else if (a.p_sort === "name") l.sort(function (x, y) { return x.display_name < y.display_name ? -1 : 1; });
-        return wait(l.map(function (u) { var c = JSON.parse(JSON.stringify(u)); c.total = l.length; return c; }));
+      var wait = function (v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 150); }); };
+      if (name === "admin_names") return wait(Demo.names.map(function (x, i) { return { poradie: i + 1, meno: x }; }));
+      if (name === "admin_metrics") {
+        var nd = a.p_days || 30, t = new Date(), series = [];
+        for (var i = nd - 1; i >= 0; i--) {
+          var dd = new Date(t); dd.setDate(t.getDate() - i); var k = nd - i, wk = dd.getDay() === 0 || dd.getDay() === 6;
+          var iso = dd.getFullYear() + "-" + String(dd.getMonth() + 1).padStart(2, "0") + "-" + String(dd.getDate()).padStart(2, "0");
+          series.push({ day: iso, active: Math.round(2 + k / 6 + (wk ? 4 : 0) + (k % 3)), opens: Math.round(5 + k / 3 + (wk ? 9 : 0) + (k % 4) * 2), new: k % 5 === 0 ? 2 : k % 3 === 0 ? 1 : 0, rides: wk ? 3 : k % 4 === 0 ? 1 : 0 });
+        }
+        return wait({ today: series[series.length - 1].day, since: series[0].day, users: { total: Demo.names.length, today: 1, d7: 3, d30: 8 },
+          active: { today: 6, d7: 9, d30: 11, app_d30: 5, ios_d30: 6, android_d30: 4, desktop_d30: 1, returning_d7: 7 },
+          visits: { today: 18, d7: 112, d30: 390, invite_d30: 14, ride_d30: 22, login_d30: 9 },
+          rides: { upcoming: 5, public_upcoming: 2, created_d7: 4, created_d30: 15, joins_d30: 23, avg_people_d30: 3.4, by_type_d30: { mtb: 7, cesta: 4, gravel: 2, ebike: 2 } },
+          social: { friendships: 19, pending: 3, push_users: 7, invites_d30: 11 }, series: series });
       }
-      if (name === "admin_user") { var u = U(a.p_user); return wait({ id: u.id, display_name: u.display_name, email: u.email, city: u.city, age: u.age, ig_username: u.ig_username, bike_types: ["mtb"], created_at: u.created_at, last_sign_in_at: u.last_sign_in_at, confirmed: true, friends: 4, upcoming: 1,
-        points: { joined: u.joined, hosted: u.hosted, photos: u.photos, bonus: u.bonus, spent: u.spent, earned: u.earned, balance: u.balance }, history: u.hist.slice().reverse() }); }
-      if (name === "admin_adjust_points") {
-        var x = U(a.p_user), dl = a.p_kind === "reward" ? -Math.abs(a.p_delta) : a.p_delta;
-        if (a.p_kind === "reward" && x.balance + dl < 0) return Promise.reject(new Error("Na túto odmenu nemá dosť bodov (má " + x.balance + ")."));
-        if (a.p_kind === "reward") x.spent -= dl; else { x.bonus += dl; x.earned += dl; }
-        x.balance += dl; x.hist.push({ kind: a.p_kind, delta: dl, reason: a.p_reason, at: new Date().toISOString(), admin: "Demo admin" });
-        D.log.unshift({ action: a.p_kind === "reward" ? "reward" : "points", detail: { delta: dl, reason: a.p_reason }, at: new Date().toISOString(), admin: "Demo admin", target_name: x.display_name });
-        return wait({ earned: x.earned, balance: x.balance });
-      }
-      if (name === "admin_rides") return wait({ counts: { public: D.rides.length, friends: 3, private: 1 }, public: D.rides });
-      if (name === "admin_delete_ride") { var rr = D.rides.filter(function (r) { return r.id === a.p_ride; })[0]; D.rides = D.rides.filter(function (r) { return r !== rr; }); D.log.unshift({ action: "ride_delete", detail: { title: rr.title, reason: a.p_reason }, at: new Date().toISOString(), admin: "Demo admin", target_name: rr.host_name }); return wait(null); }
-      if (name === "admin_log_list") return wait(D.log);
       return Promise.reject(new Error("neznáme volanie " + name));
     }
   };

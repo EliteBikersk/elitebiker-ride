@@ -3,7 +3,7 @@
 -- Každý si v Profile vyberie, pri čom mu chodia upozornenia do mobilu.
 -- =====================================================================
 
-create or replace function private.notify_kinds() returns text[] language sql immutable as
+create or replace function private.notify_kinds() returns text[] language sql immutable set search_path = '' as
 $$ select array['friend_request','friend_accepted','ride_invite','ride_join','weather']::text[] $$;
 
 create table if not exists public.notify_prefs (
@@ -44,7 +44,7 @@ end $$;
 drop trigger if exists prefs_sync on public.notify_prefs;
 create trigger prefs_sync after insert or update on public.notify_prefs for each row execute function private.prefs_sync();
 
-create or replace function private.pref_kind(k text) returns text language sql immutable as
+create or replace function private.pref_kind(k text) returns text language sql immutable set search_path = '' as
 $$ select case k when 'friend_joined' then 'friend_accepted' else k end $$;
 
 -- upozornenie má zmysel poslať, len ak má človek zapnuté zariadenie a daný druh nevypol

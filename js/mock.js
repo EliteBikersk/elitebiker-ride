@@ -70,6 +70,7 @@
   }
   var D = null;
   function load() { try { D = JSON.parse(localStorage.getItem(KEY)); } catch (e) { D = null; } if (!D) D = seed(); if (!D.bikes) D.bikes = seedBikes(); }
+  var PHONES = { "u-adam": "+421905111222", "u-peto": "+421915555666", "u-lucia": "+421944333444", "u-marek": "+421908777888" };
   function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { /* bez úložiska */ } }
   function wait(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 120); }); }
   function prof(id) { if (id === "me") return D.me; for (var i = 0; i < D.profiles.length; i++) if (D.profiles[i].id === id) return D.profiles[i]; return null; }
@@ -240,6 +241,15 @@
     },
     pushSave: function (_s, device) { D.push = true; D.pushDev = device || "Toto zariadenie"; save(); return wait(); },
     pushDelete: function () { D.push = false; save(); return wait(); },
+    myPhone: function () { return wait(D.phone || null); },
+    setPhone: function (phone) { D.phone = phone || null; save(); return wait(); },
+    ridePhones: function (rideId) {
+      var r = ride(rideId), m = {};
+      if (!r || r.participants.indexOf("me") < 0 || new Date(r.ends_at) < new Date()) return wait(m);
+      r.participants.forEach(function (u, i) { if (u !== "me" && PHONES[u]) m[u] = PHONES[u]; });
+      return wait(m);
+    },
+    track: function () { return wait(); },
     prefs: function () { return wait(D.prefs ? D.prefs.slice() : null); },
     savePrefs: function (push) { D.prefs = push.slice(); save(); return wait(); },
     pushDevices: function () { return wait(D.push ? [{ endpoint: "demo", device: D.pushDev || "Toto zariadenie", created_at: new Date().toISOString(), last_status: 201, last_at: new Date().toISOString() }] : []); },

@@ -20,6 +20,7 @@
     club: '<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17l-5.9 3 1.2-6.5L2.5 8.9 9.1 8z"/></svg>',
     back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>',
     pen: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
     share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>',
     ig: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>',
@@ -258,6 +259,25 @@
     };
   }
   function needsOnboarding() { return !S.me || !S.me.age || !S.me.display_name || !S.me.city || (!S.me.ig_username && !S.me.fb_name); }
+  // telefón ukladáme v medzinárodnom tvare; slovenské 09xx doplníme na +4219xx
+  function normPhone(v) {
+    var x = String(v || "").replace(/[\s().\/-]/g, ""); if (!x) return "";
+    if (x.indexOf("00") === 0) x = "+" + x.slice(2); else if (x.charAt(0) === "0") x = "+421" + x.slice(1); else if (/^9\d{8}$/.test(x)) x = "+421" + x;
+    return /^\+[1-9]\d{7,14}$/.test(x) ? x : null;
+  }
+  function fmtPhone(p) { if (!p) return ""; var m = /^\+(42[01])(\d{3})(\d{3})(\d{3})$/.exec(p); return m ? "+" + m[1] + " " + m[2] + " " + m[3] + " " + m[4] : p; }
+  function phoneField(pre) {
+    return '<span class="fl">Telefón <small>nepovinné</small></span><div class="cfield">' + sz(IC.phone, 17) + '<input class="inp" id="' + pre + '-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="22" placeholder="napr. 0905 123 456" data-orig="' + esc(S.phone || "") + '" value="' + esc(fmtPhone(S.phone)) + '"></div>' +
+      '<p class="small-note" style="margin:6px 0 0">📞 Uvidia ho len tí, ktorí idú s tebou na jazdu, a to len kým jazda neskončí. Aby sa ti dovolali, keď ťa čakajú na stretku.</p>';
+  }
+  // uloží telefón, ak sa zmenil; vráti false, keď je číslo zlé
+  function savePhone(pre) {
+    var el = $(pre + "-tel"); if (!el) return Promise.resolve(true);
+    var v = normPhone(el.value);
+    if (v === null) { toast("Telefónne číslo nevyzerá správne. Napíš ho napríklad 0905 123 456."); el.focus(); return Promise.resolve(false); }
+    if ((v || "") === (el.dataset.orig || "")) return Promise.resolve(true);
+    return api.setPhone(v || null).then(function () { S.phone = v || null; S.phonesKey = {}; return true; });
+  }
   function contactFields(pre, u) {
     return '<span class="fl">Kde ti kamoši napíšu? <small style="font-weight:500;color:var(--mu)">stačí jedno</small></span>' +
       '<div class="cfield">' + sz(IC.ig, 18) + '<input class="inp" id="' + pre + '-ig" maxlength="80" autocapitalize="off" autocomplete="off" placeholder="Instagram, napr. martin.rides" value="' + esc(u.ig_username || "") + '"></div>' +
@@ -276,6 +296,7 @@
       '<p class="small-note" style="margin-top:6px">Vek uvidia kamoši pri jazdách, aby vedeli, s kým idú.</p>' +
       contactFields("o", u) +
       '<p class="small-note" style="margin-top:6px">Uvidia to len prihlásení bikeri, aby ti vedeli napísať napríklad pred jazdou.</p>' +
+      phoneField("o") +
       '<span class="fl">Na čom jazdíš?</span><div class="opts" id="o-types">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-act="toggle-on" data-v="' + k + '" class="' + (types.indexOf(k) > -1 ? "on" : "") + '">' + IC[TYPES[k][1]] + TYPES[k][0] + "</button>"; }).join("") + "</div>" +
       '<div style="padding-top:22px"><button class="btn full" type="submit">Hotovo, ideme jazdiť →</button></div></form>';
     $("onbForm").onsubmit = function (e) {
@@ -287,7 +308,8 @@
       if (!(patch.age >= 14 && patch.age <= 99)) { toast("Zadaj vek od 14 do 99 rokov."); return; }
       if (!patch.city) { toast("Napíš, odkiaľ si. Podľa toho uvidíš jazdy v okolí."); $("o-city").focus(); return; }
       var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
-      api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; $("onb").classList.add("hide"); render(); afterStart(); autoLocation(p.city); toast("Vitaj v EliteBiker Ride, <b>" + esc(p.display_name.split(" ")[0]) + "</b>!"); }).catch(err);
+      if (normPhone($("o-tel").value) === null) { toast("Telefónne číslo nevyzerá správne. Napíš ho napríklad 0905 123 456, alebo nechaj prázdne."); $("o-tel").focus(); return; }
+      api.updateProfile(patch).then(function (p) { return savePhone("o").catch(function (x) { err(x); }).then(function () { return p; }); }).then(function (p) { S.me = p; S.P[S.uid] = p; $("onb").classList.add("hide"); render(); afterStart(); autoLocation(p.city); toast("Vitaj v EliteBiker Ride, <b>" + esc(p.display_name.split(" ")[0]) + "</b>!"); }).catch(err);
     };
   }
 
@@ -373,11 +395,12 @@
       "<h2>" + esc(u.display_name || "") + '</h2><p class="sub">' + esc([u.age ? u.age + " r." : "", u.city].filter(Boolean).join(" · ")) + "</p>" +
       '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px"><button class="btn sm gh" data-act="edit">Upraviť profil</button>' +
       (igUrl(S.uid) ? '<a class="btn sm gh" href="' + esc(igUrl(S.uid)) + '" target="_blank" rel="noopener">' + sz(IC.ig, 14) + "@" + esc(u.ig_username) + "</a>" : "") +
-      (fbUrl(S.uid) ? '<a class="btn sm gh" href="' + esc(fbUrl(S.uid)) + '" target="_blank" rel="noopener">' + sz(IC.fb, 14) + esc(fbLabel(S.uid)) + "</a>" : "") + "</div></div>";
+      (fbUrl(S.uid) ? '<a class="btn sm gh" href="' + esc(fbUrl(S.uid)) + '" target="_blank" rel="noopener">' + sz(IC.fb, 14) + esc(fbLabel(S.uid)) + "</a>" : "") +
+      (S.phone ? '<span class="btn sm gh nolink" title="Vidia ho len spolujazdci">' + sz(IC.phone, 14) + esc(fmtPhone(S.phone)) + "</span>" : "") + "</div></div>";
     if (S.editing) html += '<form class="card" id="editForm" style="margin-top:14px"><span class="fl" style="margin-top:0">Meno a priezvisko</span><input class="inp" id="e-name" required maxlength="60" value="' + esc(u.display_name || "") + '">' +
       '<div class="two"><div><span class="fl">Vek</span><input class="inp" id="e-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '"></div><div><span class="fl">Odkiaľ si</span><input class="inp" id="e-city" maxlength="60" placeholder="mesto alebo obec" value="' + esc(u.city || "") + '"></div></div>' +
       '<p class="small-note" style="margin:6px 0 0">🔒 Vek a mesto vidia len tvoji priatelia.</p>' +
-      contactFields("e", u) +
+      contactFields("e", u) + phoneField("e") +
       '<span class="fl">Na čom jazdíš?</span><div class="opts" id="e-types">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-act="toggle-on" data-v="' + k + '" class="' + ((u.bike_types || []).indexOf(k) > -1 ? "on" : "") + '">' + IC[TYPES[k][1]] + TYPES[k][0] + "</button>"; }).join("") + "</div>" +
       '<div style="display:flex;gap:8px;margin-top:16px"><button class="btn gh" type="button" data-act="edit">Zrušiť</button><button class="btn" style="flex:1" type="submit">Uložiť</button></div></form>';
     html += vMyBikes();
@@ -386,7 +409,7 @@
       return '<div class="row"><span style="font-size:22px;width:38px;text-align:center">' + esc(s.emoji) + '</span><div class="grow"><b>' + esc(s.name) + "</b><small>" + s.members.map(function (m) { return esc(hname(m)); }).join(", ") + '</small></div><button class="btn sm gh" data-act="del-sc" data-id="' + s.id + '">Zmazať</button></div>'; }).join("") + "</div>" : '<p class="info" style="text-align:left">Skratku si vytvoríš pri posielaní jazdy. Vyber kamošov a daj „Nová skratka“.</p>') +
       '<div class="shop"><span style="font-size:24px">🛒</span><div class="grow"><b>E-shop elitebiker.sk</b><small>Bicykle, diely, výbava a servis</small></div><a class="btn sm" href="' + esc(C.ESHOP_URL) + '" target="_blank" rel="noopener">Otvoriť →</a></div>' +
       '<div class="card" style="padding:4px 16px;margin-top:14px"><div class="kv"><span>Ochrana súkromia</span><b><a class="link-plain" href="privacy.html" target="_blank">Prečítať</a></b></div><div class="kv"><span>Heslo</span><b><button class="link-plain" data-act="pw">' + (api.hasPassword() ? "Zmeniť" : "Nastaviť") + '</button></b></div><div class="kv"><span>Účet' + (api.email && api.email() ? ' <small class="em">' + esc(api.email()) + "</small>" : "") + '</span><b><button class="link-plain" data-act="logout">Odhlásiť sa</button></b></div><div class="kv"><span>Zmazať účet a všetky údaje</span><b><button class="link-plain danger" data-act="delete-acc">Zmazať</button></b></div></div>' +
-      (S.admin ? '<a class="admlink" href="admin.html">' + sz(IC.lock, 18) + '<span class="grow"><b>Administrácia</b><small>používatelia, body, verejné jazdy</small></span>→</a>' : "") +
+      (S.admin ? '<a class="admlink" href="admin.html">' + sz(IC.lock, 18) + '<span class="grow"><b>Administrácia</b><small>používatelia a návštevnosť</small></span>→</a>' : "") +
       '<p class="small-note">🔒 Spojenie je šifrované (HTTPS), heslo je uložené len ako bezpečný odtlačok a tvoje údaje vidia len ľudia, s ktorými jazdíš.</p>' +
       (api.mode === "demo" ? '<p class="small-note">Skúšobný režim, údaje sú len v tomto prehliadači.</p>' : "") + "</div>";
     return html;
@@ -497,7 +520,8 @@
       if (!patch.display_name) { toast("Zadaj svoje meno."); return; }
       if (!(patch.age >= 14 && patch.age <= 99)) { toast("Vek musí byť od 14 do 99 rokov."); return; }
       var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
-      api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; S.editing = false; render(true); toast("Profil uložený."); autoLocation(p.city); }).catch(err);
+      if (normPhone($("e-tel").value) === null) { toast("Telefónne číslo nevyzerá správne. Napíš ho napríklad 0905 123 456."); $("e-tel").focus(); return; }
+      api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; return savePhone("e"); }).then(function (ok) { if (!ok) return; S.editing = false; render(true); toast("Profil uložený."); autoLocation(S.me.city); }).catch(err);
     };
     if (S.tab === "club" && !S.pts && !S.ptsLoading) { S.ptsLoading = true; api.points().then(function (s) { S.pts = s || { joined: 0, hosted: 0, photos: 0, bonus: 0, spent: 0, earned: 0, balance: 0, history: [] }; S.ptsLoading = false; if (S.tab === "club") render(true); }).catch(function (e) { S.ptsLoading = false; err(e); }); }
   }
@@ -552,22 +576,37 @@
       '<p class="info">Kto už ide alebo je pozvaný, jazdu uvidí aj po zmene.</p></div>';
   }
   function updateDetail() {
-    var r = find(S.openId); if (!r) return;
+    var r = find(S.openId); if (!r || !$("dPeople")) return;
     var pend = r.audience.filter(function (u) { return r.participants.indexOf(u) < 0; });
     var canInv = canInvite(r);
     $("dCount") && ($("dCount").textContent = r.participants.length + (r.max_people ? "/" + r.max_people : ""));
     $("dPeople").innerHTML = (S.fresh === r.id && canInv ? '<div class="fresh"><span class="fi">✅</span><div class="grow"><b>Jazda je uložená</b><small>Pošli odkaz aj kamošom bez appky a pridaj si ju do kalendára.</small><div class="fresh-acts"><button class="btn sm" data-act="ride-link" data-id="' + r.id + '">' + sz(IC.link, 14) + 'Poslať odkaz</button><button class="btn sm gh" data-act="cal" data-id="' + r.id + '">' + sz(IC.cal, 14) + "Do kalendára</button></div></div></div>" : "") +
       '<div class="sec-h"><b>Kto ide</b><small>' + r.participants.length + (pend.length && r.host === S.uid ? " · " + pend.length + " pozvaní" : "") + '</small></div><div class="card" style="padding:4px 16px">' +
-      r.participants.map(function (id) { return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(contactLine(id)) + "</small>" + bikeLine(id) + "</div>" + (id !== S.uid ? contactBtns(id) : "") + "</div>"; }).join("") +
+      r.participants.map(function (id) { return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(contactLine(id)) + "</small>" + bikeLine(id) + "</div>" + (id !== S.uid ? callBtn(r.id, id) + contactBtns(id) : "") + "</div>"; }).join("") +
       (r.host === S.uid ? pend.map(function (id) { return '<div class="row" style="opacity:.6">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>pozvaný · zatiaľ sa nepridal</small></div></div>"; }).join("") : "") +
       (canInv ? '<div class="row" style="cursor:pointer" data-act="invmodal" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.plus, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať kamošov</b><small>z tvojej partie</small></div></div>' +
         '<div class="row" style="cursor:pointer" data-act="ride-link" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.link, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať odkazom</b><small>aj tých, čo ešte nemajú appku</small></div></div>' : "") + "</div>";
     renderChat();
     $("dActs").innerHTML = ended(r) ? (going(r) ? '<button class="btn full igb" data-act="story" data-id="' + r.id + '">' + sz(IC.share, 18) + "Zdieľať jazdu s EliteBiker dizajnom</button>" : "") : r.host === S.uid ? '<button class="btn gh" style="flex:0 0 auto" data-act="cancel" data-id="' + r.id + '">Zrušiť jazdu</button>' + (canInv ? '<button class="btn full" data-act="invmodal" data-id="' + r.id + '">' + sz(IC.send, 16) + "Pozvať kamošov</button>" : "")
       : going(r) ? '<button class="btn full in" data-act="join" data-id="' + r.id + '">' + IC.check + "Ideš · odhlásiť sa</button>" : isFull(r) ? '<button class="btn full" disabled>Jazda je plná (' + r.participants.length + "/" + r.max_people + ")</button>" : '<button class="btn full" data-act="join" data-id="' + r.id + '">Pridám sa k jazde</button>';
-    if (!ended(r) && !going(r) && stranger(r) && !isFull(r)) $("dPeople").insertAdjacentHTML("beforeend", '<p class="pubnote">🌍 Verejná jazda. Keď sa pridáš, uvidíte navzájom svoje meno, vek a kontakt a odomkne sa ti chat.</p>');
+    if (!ended(r) && !going(r) && stranger(r) && !isFull(r)) $("dPeople").insertAdjacentHTML("beforeend", '<p class="pubnote">🌍 Verejná jazda. Keď sa pridáš, uvidíte navzájom svoje meno, vek, kontakt a telefón a odomkne sa ti chat.</p>');
+    if (!ended(r) && going(r) && !S.phone && r.participants.length > 1) $("dPeople").insertAdjacentHTML("beforeend", '<button class="phnudge" data-act="add-phone">' + sz(IC.phone, 18) + '<span class="grow"><b>Pridaj si telefón</b><small>Spolujazdci ti zavolajú, keď ťa budú čakať na stretku. Uvidia ho len oni.</small></span></button>');
+    loadPhones(r);
     renderPhotos();
     renderWx();
+  }
+  // telefóny spolujazdcov: server ich dá len účastníkovi jazdy, kým jazda neskončí
+  function loadPhones(r) {
+    S.phones = S.phones || {}; S.phonesKey = S.phonesKey || {};
+    if (!going(r) || ended(r)) { S.phones[r.id] = {}; return; }
+    var key = r.participants.slice().sort().join(",");
+    if (S.phonesKey[r.id] === key) return;
+    S.phonesKey[r.id] = key;
+    api.ridePhones(r.id).then(function (m) { S.phones[r.id] = m || {}; if (S.openId === r.id) updateDetail(); }).catch(function () { S.phonesKey[r.id] = null; });
+  }
+  function callBtn(rid, uid) {
+    var p = S.phones && S.phones[rid] && S.phones[rid][uid];
+    return p ? '<a class="btn sm gh call" href="tel:' + esc(p) + '" aria-label="Zavolať ' + esc(hname(uid)) + '" title="Zavolať ' + esc(fmtPhone(p)) + '">' + sz(IC.phone, 14) + "</a>" : "";
   }
   function renderChat(scroll) {
     var r = find(S.openId), el = $("dChat"); if (!r || !el) return;
@@ -1516,6 +1555,7 @@
       case "more": saveD(); D.more = el.classList.contains("open") ? "closed" : true; drawCreate(true); break;
       case "create": openCreate(); break;
       case "edit-ride": openEdit(id); break;
+      case "add-phone": closeModal(); if ($("sheet").classList.contains("open")) closeSheet(); S.tab = "profile"; S.editing = true; render(); setTimeout(function () { var t = $("e-tel"); if (t) { t.scrollIntoView({ block: "center" }); t.focus(); } }, 120); break;
       case "edit-back": if (fmap) { fmap.remove(); fmap = null; } openRide(id); break;
       case "pref": togglePref(el.dataset.k); break;
       case "pref-retry": PREF.err = false; loadPrefs(); drawPrefs(); break;
@@ -1625,6 +1665,7 @@
 
   /* ---------------- štart ---------------- */
   function afterStart() {
+    api.myPhone().then(function (ph) { S.phone = ph; if (S.tab === "profile") render(true); if (S.openId) updateDetail(); }).catch(function () {});
     api.isAdmin().then(function (a) { S.admin = !!a; if (a && S.tab === "profile") render(true); }).catch(function () {});
     autoLocation(S.me && S.me.city);
     var h = location.hash, code = pending();
@@ -1646,10 +1687,19 @@
     pushInit();
     api.myTemplates().then(function (l) { S.tpl = buildTemplates(l); if (S.tab === "feed" && !$("sheet").classList.contains("open")) render(true); }).catch(function () {});
   }
+  // súhrnná návštevnosť: jedno počítadlo za otvorenie appky, do zariadenia nič neukladáme
+  var TRK = { day: null };
+  function todayKey() { var d = new Date(); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  function track(kind) {
+    TRK.day = todayKey();
+    try { api.track(kind, isIOS() ? "ios" : isAndroid() ? "android" : "desktop", standalone()); } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible" && TRK.day && TRK.day !== todayKey()) track("open"); });
   function boot() {
     if (!api) { document.body.innerHTML = '<p style="padding:40px;font-family:sans-serif">Aplikáciu sa nepodarilo načítať. Obnov stránku.</p>'; return; }
     if (api.mode === "demo") { document.querySelector(".app").classList.add("has-banner"); var b = document.createElement("div"); b.className = "demo-banner"; b.textContent = "Skúšobný režim, údaje sú len v tomto prehliadači"; document.querySelector(".app").appendChild(b); }
     var p = new URLSearchParams(location.search), poz = p.get("pozvanka");
+    var kind = poz ? "invite" : location.hash.indexOf("#jazda-") === 0 ? "ride" : "open";
     if (poz && /^[A-Za-z0-9_-]{6,40}$/.test(poz)) { try { localStorage.setItem("eb_pozvanka", poz); } catch (e) {} }
     if (poz) { p.delete("pozvanka"); history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash); }
     if (p.get("pridaj")) { p.delete("pridaj"); history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash); }
@@ -1657,6 +1707,7 @@
     var sm = new MutationObserver(function () { var o = $("sheet").classList.contains("open") || $("modal").classList.contains("open"); $("scrim").classList.toggle("on", o); });
     sm.observe($("sheet"), { attributes: true, attributeFilter: ["class"] }); sm.observe($("modal"), { attributes: true, attributeFilter: ["class"] });
     api.init().then(function (r) {
+      track(kind);
       var msg = r.message;
       if (msg) toast(esc(msg));
       if (!r.user) { renderLogin(); return; }

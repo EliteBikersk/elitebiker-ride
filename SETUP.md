@@ -69,8 +69,9 @@ Vyplň `js/config.js` (Supabase URL a publishable key), ulož do GitHubu, o min�
 insert into private.admins (user_id) values ('<uuid z Authentication → Users>');
 ```
 - Pri prvom vstupe si admin zapne overovaciu aplikáciu (Google/Microsoft Authenticator). Bez kódu z nej server nič nevydá (kontrola `aal2` v každej admin funkcii).
-- Admin vidí používateľov (e-mail, mesto, vek, kontakty, body), pridáva/odoberá body s dôvodom, vydáva odmeny, ruší nevhodné verejné jazdy. Každá zmena ide do `private.admin_log`.
-- Súkromné jazdy a chaty admin nevidí. Po 20 min nečinnosti sa admin odhlási, prihlásenie platí len v jednej karte.
+- Admin vidí len poradie a mená používateľov (`admin_names()`) a súhrnné metriky (`admin_metrics(p_days)`): aktívni dnes, za 7 a 30 dní, vracajúci sa, appka na ploche, otvorenia appky (aj cez pozvánku a odkaz na jazdu), noví, jazdy podľa typu, zariadenia, priateľstvá, upozornenia a graf po dňoch. E-mail, vek, mesto, telefón ani kontakty admin nevidí.
+- Meranie: appka pri otvorení zavolá `track(kind, platform, standalone)`. Do `private.visit_days` sa pripočíta jedno otvorenie za deň (bez identity), prihlásenému sa do `private.activity_days` zapíše aktívny deň (maže sa po 400 dňoch v `eb-ride-housekeeping`). Do zariadenia sa nič neukladá.
+- Body (`admin_adjust_points`) a rušenie verejných jázd (`admin_delete_ride`) ostali na serveri pre neskorší Klub, v administrácii zatiaľ nie sú. Po 20 min nečinnosti sa admin odhlási, prihlásenie platí len v jednej karte.
 
 ### Verejné jazdy a body
 - Jazda má `visibility`: `public` (každý do 30 km od stretka podľa `user_locations`), `friends` (pozvaní, môžu pozývať ďalej), `private` (len pozvaní, pozýva len organizátor).
@@ -90,7 +91,9 @@ insert into private.admins (user_id) values ('<uuid z Authentication → Users>'
 - **Fotky** z jázd sú v súkromnom úložisku, profilovky vo verejnom.
 - **Hľadanie** kamošov podľa mena, Instagramu alebo Facebooku (aj bez diakritiky), funkcia `search_profiles`.
 - **Zmazanie účtu** v Profile zmaže profil, bicykle, jazdy, správy a fotky.
-- **Upozornenia do mobilu**: žiadosti o priateľstvo, pozvánky na jazdy, kto sa pridal k jazde, zlé počasie.
+- **Upozornenia do mobilu**: žiadosti o priateľstvo, pozvánky na jazdy, kto sa pridal k jazde, zlé počasie. Čo komu chodí, rozhoduje `notify_prefs` (výber v Profile) cez `private.wants()`.
+- **Telefón** je v `user_phones` (vidí ho len vlastník); spolujazdcom ho vráti len `ride_phones(p_ride)`, a to len účastníkovi jazdy, kým jazda neskončí.
+- **Úprava jazdy**: organizátor môže meniť vybrané stĺpce (`ride_guard` kontroluje čas, limit ľudí a skončenú jazdu).
 
 ## Prečo nie Instagram / Strava prihlásenie (10. 11. 2026)
 - **Instagram:** nové Meta aplikácie od konca októbra 2026 nedostanú „Instagram login“, len Unified login cez Facebook

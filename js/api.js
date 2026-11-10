@@ -328,6 +328,25 @@
     /* ---------- Klub: body počíta server (nedajú sa podvrhnúť) ---------- */
     points: function () { return sb.rpc("my_points").then(function (r) { fail(r.error, "Body sa nepodarilo načítať."); return r.data; }); },
 
+    /* ---------- telefón: vidia ho len spolujazdci ---------- */
+    myPhone: function () { return sb.from("user_phones").select("phone").eq("user_id", me.id).maybeSingle().then(function (r) { return r.error || !r.data ? null : r.data.phone; }); },
+    setPhone: function (phone) {
+      var msg = "Telefónne číslo sa nepodarilo uložiť.";
+      if (!phone) return sb.from("user_phones").delete().eq("user_id", me.id).then(function (r) { fail(r.error, msg); });
+      return sb.from("user_phones").update({ phone: phone }).eq("user_id", me.id).select("user_id").then(function (r) {
+        fail(r.error, msg);
+        if (r.data && r.data.length) return;
+        return sb.from("user_phones").insert({ user_id: me.id, phone: phone }).then(function (x) { fail(x.error, msg); });
+      });
+    },
+    ridePhones: function (rideId) {
+      return sb.rpc("ride_phones", { p_ride: rideId }).then(function (r) { var m = {}; (r.data || []).forEach(function (x) { m[x.user_id] = x.phone; }); return m; });
+    },
+    // súhrnná návštevnosť (koľko ľudí appku otvorilo), nič sa neukladá do zariadenia
+    track: function (kind, platform, standalone) {
+      return sb.rpc("track", { p_kind: kind || "open", p_platform: platform || null, p_standalone: !!standalone }).then(function () {}, function () {});
+    },
+
     /* ---------- počasie a upozornenia ---------- */
     weather: function (points) { return fn("weather", { points: points }).then(function (d) { return d.data || {}; }); },
     pushSave: function (sub, device) {
