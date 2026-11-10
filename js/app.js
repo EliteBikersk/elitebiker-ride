@@ -266,16 +266,16 @@
       (invitedMe(r) ? '<div class="invited" style="margin-bottom:10px">✉️ ' + esc(hname(r.host)) + " ťa pozýva</div>" : "") +
       '<div class="rh">' + pic(r.host) + '<div class="nm">' + hn(r.host) + "<small>" + esc((r.meet.label || "").split(" – ")[0]) + '</small></div><div class="time">' + hm(r.starts_at) + "<small>" + dShort(r.starts_at) + "</small></div></div>" +
       '<div class="rt">' + esc(r.title) + "</div>" +
-      '<div class="meta"><span class="chip b">' + IC[ty[1]] + ty[0] + "</span>" + (r.distance_km ? '<span class="chip">' + IC.route + km(r.distance_km) + " km</span>" : "") + (r.elevation_m ? '<span class="chip">' + IC.up + r.elevation_m + " m</span>" : "") + '<span class="chip">' + IC.gauge + PACE[r.pace] + "</span></div>" +
+      '<div class="meta"><span class="chip b">' + IC[ty[1]] + ty[0] + "</span>" + (r.distance_km ? '<span class="chip">' + IC.route + km(r.distance_km) + " km</span>" : "") + (r.elevation_m ? '<span class="chip">' + IC.up + r.elevation_m + " m</span>" : "") + '<span class="chip">' + IC.gauge + PACE[r.pace] + "</span>" + wxChip(r) + "</div>" +
       '<div class="rf"><div class="stack">' + ppl.slice(0, 4).map(function (u) { return pic(u, "s"); }).join("") + "<em>" + (n === 1 ? "zatiaľ len " + (r.host === S.uid ? "ty" : esc(hname(r.host))) : n + " " + (n < 5 ? "idú" : "ide")) + (r.max_people ? " · " + n + "/" + r.max_people : "") + "</em></div>" + btn + "</div></div>";
   }
   function pastCard(r) {
     return '<div class="card ride" data-act="open" data-id="' + r.id + '"><div class="rh">' + pic(r.host) + '<div class="nm">' + hn(r.host) + "<small>" + dLabel(r.starts_at) + " · " + r.participants.length + " " + ludi(r.participants.length) + '</small></div><span class="chip lb" style="margin-left:auto">Odjazdené</span></div>' +
-      '<div class="rt">' + esc(r.title) + '</div><div class="rf"><div class="stack">' + r.participants.slice(0, 5).map(function (u) { return pic(u, "s"); }).join("") + "<em>" + (r.distance_km ? km(r.distance_km) + " km" : "") + '</em></div><button class="btn sm gh" data-act="open" data-id="' + r.id + '">' + sz(IC.camera, 15) + "Fotky</button></div></div>";
+      '<div class="rt">' + esc(r.title) + '</div><div class="rf"><div class="stack">' + r.participants.slice(0, 5).map(function (u) { return pic(u, "s"); }).join("") + "<em>" + (r.distance_km ? km(r.distance_km) + " km" : "") + '</em></div><button class="btn sm gh" data-act="story" data-id="' + r.id + '">' + sz(IC.ig, 15) + "Story</button></div></div>";
   }
 
   /* ---------------- obrazovky ---------------- */
-  function notifCount() { return S.fr.incoming.length + S.rides.filter(invitedMe).length; }
+  function notifCount() { return S.fr.incoming.length + S.rides.filter(invitedMe).length + wxBadRides().length; }
   function topbar(title) {
     var n = notifCount();
     return '<div class="top">' + title + '<div style="display:flex;gap:8px;align-items:center"><button class="icb" data-act="notif" style="position:relative" aria-label="Upozornenia">' + sz(IC.bell, 19) + (n ? '<span class="dot" style="top:-4px;right:-4px">' + n + "</span>" : "") + "</button></div></div>";
@@ -350,7 +350,7 @@
     html += '<div class="sec-h"><b>Moje skratky</b><small>komu posielam jazdy</small></div>' + (S.sc.length ? '<div class="card" style="padding:4px 16px">' + S.sc.map(function (s) {
       return '<div class="row"><span style="font-size:22px;width:38px;text-align:center">' + esc(s.emoji) + '</span><div class="grow"><b>' + esc(s.name) + "</b><small>" + s.members.map(function (m) { return esc(hname(m)); }).join(", ") + '</small></div><button class="btn sm gh" data-act="del-sc" data-id="' + s.id + '">Zmazať</button></div>'; }).join("") + "</div>" : '<p class="info" style="text-align:left">Skratku si vytvoríš pri posielaní jazdy – vyber kamošov a daj „Nová skratka“.</p>') +
       '<div class="shop"><span style="font-size:24px">🛒</span><div class="grow"><b>E-shop elitebiker.sk</b><small>Bicykle, diely, výbava a servis</small></div><a class="btn sm" href="' + esc(C.ESHOP_URL) + '" target="_blank" rel="noopener">Otvoriť →</a></div>' +
-      '<div class="card" style="padding:4px 16px;margin-top:14px"><div class="kv"><span>Ochrana súkromia</span><b><a class="link-plain" href="privacy.html" target="_blank">Prečítať</a></b></div><div class="kv"><span>Heslo</span><b><button class="link-plain" data-act="pw">' + (api.hasPassword() ? "Zmeniť" : "Nastaviť") + '</button></b></div><div class="kv"><span>Účet' + (api.email && api.email() ? ' <small class="em">' + esc(api.email()) + "</small>" : "") + '</span><b><button class="link-plain" data-act="logout">Odhlásiť sa</button></b></div><div class="kv"><span>Zmazať účet a všetky údaje</span><b><button class="link-plain danger" data-act="delete-acc">Zmazať</button></b></div></div>' +
+      '<div class="card" style="padding:4px 16px;margin-top:14px"><div class="kv"><span>Ochrana súkromia</span><b><a class="link-plain" href="privacy.html" target="_blank">Prečítať</a></b></div><div class="kv"><span>Upozornenia na počasie' + (PUSH.state === "on" ? ' <small class="em">zapnuté na tomto zariadení · <button class="link-plain" data-act="push-test">vyskúšať</button></small>' : PUSH.state === "denied" ? ' <small class="em">zakázané v prehliadači</small>' : "") + '</span><b>' + (PUSH.state === "on" ? '<button class="link-plain" data-act="push-off">Vypnúť</button>' : '<button class="link-plain" data-act="push-on">Zapnúť</button>') + '</b></div><div class="kv"><span>Heslo</span><b><button class="link-plain" data-act="pw">' + (api.hasPassword() ? "Zmeniť" : "Nastaviť") + '</button></b></div><div class="kv"><span>Účet' + (api.email && api.email() ? ' <small class="em">' + esc(api.email()) + "</small>" : "") + '</span><b><button class="link-plain" data-act="logout">Odhlásiť sa</button></b></div><div class="kv"><span>Zmazať účet a všetky údaje</span><b><button class="link-plain danger" data-act="delete-acc">Zmazať</button></b></div></div>' +
       (api.mode === "demo" ? '<p class="small-note">Skúšobný režim – údaje sú len v tomto prehliadači.</p>' : "") + "</div>";
     return html;
   }
@@ -368,6 +368,7 @@
     if (!S.me) return;
     var v = $("view"), y = v.scrollTop;
     v.innerHTML = { feed: vFeed, friends: vFriends, club: vClub, profile: vProfile }[S.tab]();
+    setTimeout(loadWeather, 0);
     if (keep) v.scrollTop = y;
     renderNav();
     var q = $("q");
@@ -421,7 +422,7 @@
       '<div class="grid4"><div><b>' + (r.distance_km ? km(r.distance_km) : "–") + "</b><small>km</small></div><div><b>" + (r.elevation_m || "–") + "</b><small>m stúp.</small></div><div><b>" + PACE[r.pace] + '</b><small>tempo</small></div><div><b id="dCount">' + r.participants.length + (r.max_people ? "/" + r.max_people : "") + "</b><small>" + (r.max_people ? "miest" : ludi(r.participants.length)) + "</small></div></div>" +
       (r.note ? '<div class="note">' + esc(r.note) + "</div>" : "") +
       (r.link_url ? '<a class="linkout" href="' + esc(r.link_url) + '" target="_blank" rel="noopener nofollow">' + sz(IC.link, 16) + '<span class="grow"><b>Trasa / info o akcii</b><small>' + esc(r.link_url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) + "</small></span>" + sz(IC.back, 14).replace("<svg", '<svg style="transform:rotate(180deg)"') + "</a>" : "") +
-      '<div id="dPhotos"></div><div id="dPeople"></div><div id="dChat"></div></div><div class="sticky-act" id="dActs"></div>');
+      '<div id="dWx"></div><div id="dPhotos"></div><div id="dPeople"></div><div id="dChat"></div></div><div class="sticky-act" id="dActs"></div>');
     updateDetail();
     setTimeout(function () { if (S.openId === id && window.EBMap) dmap = EBMap.showRide($("dmap"), r); }, 60);
     loadPhotos(id);
@@ -442,9 +443,10 @@
       (canInv ? '<div class="row" style="cursor:pointer" data-act="invmodal" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.plus, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať kamošov</b><small>z tvojej partie</small></div></div>' +
         '<div class="row" style="cursor:pointer" data-act="ride-link" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.link, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať odkazom</b><small>aj tých, čo ešte nemajú appku</small></div></div>' : "") + "</div>";
     renderChat();
-    $("dActs").innerHTML = ended(r) ? "" : r.host === S.uid ? '<button class="btn gh" style="flex:0 0 auto" data-act="cancel" data-id="' + r.id + '">Zrušiť jazdu</button>' + (canInv ? '<button class="btn full" data-act="invmodal" data-id="' + r.id + '">' + sz(IC.send, 16) + "Pozvať kamošov</button>" : "")
+    $("dActs").innerHTML = ended(r) ? (going(r) ? '<button class="btn full igb" data-act="story" data-id="' + r.id + '">' + sz(IC.ig, 18) + "Vytvoriť Instagram Story</button>" : "") : r.host === S.uid ? '<button class="btn gh" style="flex:0 0 auto" data-act="cancel" data-id="' + r.id + '">Zrušiť jazdu</button>' + (canInv ? '<button class="btn full" data-act="invmodal" data-id="' + r.id + '">' + sz(IC.send, 16) + "Pozvať kamošov</button>" : "")
       : going(r) ? '<button class="btn full in" data-act="join" data-id="' + r.id + '">' + IC.check + "Ideš · odhlásiť sa</button>" : isFull(r) ? '<button class="btn full" disabled>Jazda je plná (' + r.participants.length + "/" + r.max_people + ")</button>" : '<button class="btn full" data-act="join" data-id="' + r.id + '">Pridám sa k jazde</button>';
     renderPhotos();
+    renderWx();
   }
   function renderChat(scroll) {
     var r = find(S.openId), el = $("dChat"); if (!r || !el) return;
@@ -468,7 +470,7 @@
     var r = find(S.openId), el = $("dPhotos"); if (!r || !el) return;
     var ph = S.photos[r.id] || [], can = going(r);
     if (!can && !ph.length) { el.innerHTML = ""; return; }
-    el.innerHTML = '<div class="sec-h"><b>Fotky z jazdy</b><small>' + (ph.length ? ph.length + " · vidia ich všetci pozvaní" : "zatiaľ žiadne") + '</small></div><div class="phg">' +
+    el.innerHTML = (canStory(r) && !ended(r) ? '<button class="storyrow" data-act="story" data-id="' + r.id + '">' + sz(IC.ig, 20) + '<span class="grow"><b>Instagram Story z jazdy</b><small>obrázok s logom, trasou a partiou</small></span></button>' : "") + '<div class="sec-h"><b>Fotky z jazdy</b><small>' + (ph.length ? ph.length + " · vidia ich všetci pozvaní" : "zatiaľ žiadne") + '</small></div><div class="phg">' +
       (can ? '<label class="upt">' + sz(IC.plus, 22) + 'Pridať fotku<input type="file" accept="image/*" multiple data-up="photo" data-id="' + r.id + '"></label>' : "") +
       ph.map(function (p, i) { return '<div class="ph" data-act="viewph" data-i="' + i + '"><img class="real" src="' + esc(p.url) + '" alt="" loading="lazy"><span class="who">' + pic(p.user_id, "xs") + '<span style="overflow:hidden;text-overflow:ellipsis">' + (p.user_id === S.uid ? "ty" : esc(hname(p.user_id))) + "</span></span></div>"; }).join("") + "</div>" +
       (can && !ph.length ? '<p class="info" style="text-align:left;margin-top:8px">Pridaj fotku zo stretka, z výhľadu alebo z cieľa. Fotky ostávajú aj po jazde.</p>' : "");
@@ -531,6 +533,278 @@
     var s = new Date(r.starts_at), e = new Date(r.ends_at), multi = day0(e) - day0(s) >= 864e5;
     return dLabel(r.starts_at) + " o " + hm(r.starts_at) + (multi ? " – " + dLabel(r.ends_at).toLowerCase() : " – približne do " + hm(r.ends_at));
   }
+
+  /* ---------------- počasie (MET Norway cez server) ---------------- */
+  var WX = {}, wxBusy = false, wxAsked = {};
+  var WXL = { clearsky: "jasno", fair: "takmer jasno", partlycloudy: "polojasno", cloudy: "zamračené", fog: "hmla", lightrain: "slabý dážď", rain: "dážď", heavyrain: "silný dážď",
+    lightrainshowers: "slabé prehánky", rainshowers: "prehánky", heavyrainshowers: "silné prehánky", lightsleet: "slabý dážď so snehom", sleet: "dážď so snehom", heavysleet: "silný dážď so snehom",
+    lightsleetshowers: "prehánky so snehom", sleetshowers: "prehánky so snehom", heavysleetshowers: "silné prehánky so snehom", lightsnow: "slabé sneženie", snow: "sneženie", heavysnow: "silné sneženie",
+    lightsnowshowers: "snehové prehánky", snowshowers: "snehové prehánky", heavysnowshowers: "silné snehové prehánky" };
+  function wxKey(m) { return (+m.lat).toFixed(2) + "," + (+m.lng).toFixed(2); }
+  function wxLabel(sym) { var s = String(sym || "").replace(/_(day|night|polartwilight)$/, ""); return s.indexOf("thunder") > -1 ? "búrka" : WXL[s] || s; }
+  function wxEmoji(sym) {
+    var s = String(sym || ""), night = /_night$/.test(s);
+    if (s.indexOf("thunder") > -1) return "⛈️";
+    if (s.indexOf("snow") > -1 || s.indexOf("sleet") > -1) return "🌨️";
+    if (s.indexOf("rainshowers") > -1) return "🌦️";
+    if (s.indexOf("rain") > -1) return "🌧️";
+    if (s.indexOf("fog") === 0) return "🌫️";
+    if (s.indexOf("cloudy") === 0) return "☁️";
+    if (s.indexOf("partlycloudy") === 0) return night ? "☁️" : "⛅";
+    if (s.indexOf("fair") === 0) return night ? "🌙" : "🌤️";
+    if (s.indexOf("clearsky") === 0) return night ? "🌙" : "☀️";
+    return "🌡️";
+  }
+  function wxRank(s) {
+    s = String(s || "");
+    if (s.indexOf("thunder") > -1) return 9; if (s.indexOf("heavy") > -1) return 8; if (s.indexOf("snow") > -1 || s.indexOf("sleet") > -1) return 7;
+    if (s.indexOf("rain") === 0 || s.indexOf("_rain") > -1) return 6; if (s.indexOf("light") === 0) return 5; if (s.indexOf("fog") === 0) return 3;
+    if (s.indexOf("cloudy") === 0) return 2; if (s.indexOf("partlycloudy") === 0) return 1; return 0;
+  }
+  // rovnaké pravidlá ako server (supabase/functions/_shared/weather.ts)
+  function wxEval(r) {
+    var ser = WX[wxKey(r.meet)]; if (!ser || !ser.length) return null;
+    var st = new Date(r.starts_at).getTime(), en = new Date(r.ends_at).getTime();
+    var pts = ser.filter(function (p) { return p.t + p.dur * 36e5 > st && p.t < en; });
+    if (!pts.length) return { none: true, last: ser[ser.length - 1].t };
+    var tmin = Infinity, tmax = -Infinity, pr = 0, pop = 0, wind = 0, gust = 0, thu = 0, sym = "", noPop = true;
+    pts.forEach(function (p) {
+      if (p.temp != null) { tmin = Math.min(tmin, p.temp); tmax = Math.max(tmax, p.temp); }
+      var ov = Math.max(0, Math.min(en, p.t + p.dur * 36e5) - Math.max(st, p.t)) / 36e5;
+      pr += p.dur === 1 ? p.pr : p.pr * Math.min(1, ov / p.dur);
+      if (p.pop != null) { noPop = false; pop = Math.max(pop, p.pop); }
+      thu = Math.max(thu, p.thu || 0); wind = Math.max(wind, p.wind || 0); gust = Math.max(gust, p.gust || 0);
+      if (wxRank(p.sym) >= wxRank(sym)) sym = p.sym;
+    });
+    var bad = [];
+    if (sym.indexOf("thunder") > -1 || thu >= 30) bad.push("búrka");
+    if (sym.indexOf("snow") > -1) bad.push("sneženie"); else if (sym.indexOf("sleet") > -1) bad.push("dážď so snehom");
+    if (pr >= 5 || sym.indexOf("heavyrain") > -1) bad.push("silný dážď"); else if (pr >= 1 && (pop >= 50 || noPop)) bad.push("dážď");
+    if (gust >= 15 || wind >= 10) bad.push("silný vietor");
+    if (tmax >= 33) bad.push("horúčava");
+    return { tmin: Math.round(tmin), tmax: Math.round(tmax), pr: Math.round(pr * 10) / 10, wind: Math.round(wind * 3.6), gust: Math.round(gust * 3.6), sym: sym, label: wxLabel(sym), bad: bad, pts: pts };
+  }
+  function wxSoon(r) { var t = new Date(r.starts_at).getTime(); return !ended(r) && t < Date.now() + 10 * 864e5; }
+  function loadWeather() {
+    if (wxBusy || !S.me) return;
+    var pts = [], seen = {};
+    S.rides.forEach(function (r) { if (!wxSoon(r)) return; var k = wxKey(r.meet); if (WX[k] || wxAsked[k] || seen[k]) return; seen[k] = 1; pts.push({ lat: r.meet.lat, lng: r.meet.lng }); });
+    if (!pts.length) return;
+    wxBusy = true;
+    api.weather(pts.slice(0, 30)).then(function (d) { Object.keys(d || {}).forEach(function (k) { WX[k] = d[k] || []; }); })
+      .catch(function () {}).then(function () {
+        wxBusy = false; pts.forEach(function (p) { wxAsked[wxKey(p)] = 1; });
+        if (!$("modal").classList.contains("open") || !$("pickRoot")) render(true);
+        if (S.openId && $("sheet").classList.contains("open")) renderWx();
+      });
+  }
+  function wxChip(r) {
+    if (!wxSoon(r)) return ""; var w = wxEval(r); if (!w || w.none) return "";
+    return '<span class="chip wx' + (w.bad.length ? " bad" : "") + '" title="' + esc(w.label) + '">' + wxEmoji(w.sym) + " " + (w.tmax > -100 ? w.tmax + "°" : "") + (w.bad.length ? " · " + esc(w.bad[0]) : "") + "</span>";
+  }
+  function wxBadRides() { return S.rides.filter(function (r) { if (!going(r) || ended(r)) return false; if (new Date(r.starts_at) > new Date(Date.now() + 48 * 36e5)) return false; var w = wxEval(r); return w && !w.none && w.bad.length; }); }
+  function renderWx() {
+    var r = find(S.openId), el = $("dWx"); if (!r || !el) return;
+    if (ended(r)) { el.innerHTML = ""; return; }
+    var head = '<div class="sec-h"><b>Počasie na jazde</b><small>predpoveď MET Norway</small></div>';
+    var days = Math.ceil((new Date(r.starts_at) - Date.now()) / 864e5);
+    if (days > 10) { el.innerHTML = head + '<div class="wxcard muted"><span class="wxe">🌤️</span><div class="grow"><b>Predpoveď bude o ' + (days - 9) + " " + (days - 9 === 1 ? "deň" : days - 9 < 5 ? "dni" : "dní") + "</b><small>Počasie ukážeme 9 dní pred jazdou" + (pushBtnNeeded() ? " a ak bude zlé, upozorníme ťa." : ".") + "</small></div></div>" + pushCta(); return; }
+    var w = wxEval(r);
+    if (!w) { el.innerHTML = head + '<div class="wxcard muted"><span class="wxe">⏳</span><div class="grow"><b>Načítavam predpoveď…</b></div></div>'; loadWeather(); return; }
+    if (w.none) { el.innerHTML = head + '<div class="wxcard muted"><span class="wxe">🌤️</span><div class="grow"><b>Predpoveď ešte nie je</b><small>Ukážeme ju pár dní pred jazdou.</small></div></div>' + pushCta(); return; }
+    var hours = w.pts.filter(function (p) { return p.dur === 1; }).filter(function (p, i, a) { return a.length <= 8 || i % Math.ceil(a.length / 8) === 0; }).slice(0, 8);
+    el.innerHTML = head + '<div class="wxcard' + (w.bad.length ? " bad" : "") + '"><span class="wxe">' + wxEmoji(w.sym) + '</span><div class="grow"><b>' + esc(w.label.charAt(0).toUpperCase() + w.label.slice(1)) + " · " + (w.tmin === w.tmax ? w.tmax : w.tmin + "–" + w.tmax) + " °C</b><small>" +
+      [w.pr ? "zrážky " + String(w.pr).replace(".", ",") + " mm" : "bez zrážok", "vietor " + w.wind + " km/h" + (w.gust > w.wind ? " (nárazy " + w.gust + ")" : "")].join(" · ") + "</small></div></div>" +
+      (hours.length > 1 ? '<div class="wxhours">' + hours.map(function (p) { return "<div><small>" + hm(p.t) + "</small><i>" + wxEmoji(p.sym) + "</i><b>" + Math.round(p.temp) + "°</b>" + (p.pr ? '<em>' + String(Math.round(p.pr * 10) / 10).replace(".", ",") + "</em>" : "") + "</div>"; }).join("") + "</div>" : "") +
+      (w.bad.length ? '<div class="wxwarn">⚠️<div><b>Hlásia ' + esc(w.bad.join(", ")) + "</b><small>" + (going(r) ? "Dohodnite sa v chate, či idete alebo jazdu posuniete." : "Skontroluj predpoveď pred odchodom.") + "</small></div></div>" : "") + pushCta();
+  }
+  function pushBtnNeeded() { return PUSH.state !== "on"; }
+  function pushCta() { return pushBtnNeeded() ? '<button class="pushcta" data-act="push-on">🔔 <span><b>Upozorni ma na zlé počasie</b><small>deň pred jazdou ti príde správa do mobilu</small></span></button>' : '<p class="small-note" style="margin-top:8px">🔔 Upozornenia sú zapnuté – ak sa počasie pokazí, dáme ti vedieť.</p>'; }
+
+  /* ---------------- upozornenia do mobilu (web push) ---------------- */
+  var PUSH = { ok: "serviceWorker" in navigator && "PushManager" in window && "Notification" in window, state: "off", sub: null };
+  function standalone() { return !!(navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches)); }
+  function b64u(s) { var p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+  function pushInit() {
+    if (api.mode === "demo") { PUSH.ok = true; return; }
+    if (!PUSH.ok) return;
+    navigator.serviceWorker.register("sw.js").then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      PUSH.sub = sub; PUSH.state = sub ? "on" : (Notification.permission === "denied" ? "denied" : "off");
+      if (sub) api.pushSave(sub).catch(function () {});
+      if (S.tab === "profile") render(true); renderWx();
+    }).catch(function () {});
+  }
+  function pushOn() {
+    if (api.mode === "demo") { api.pushSave().then(function () { PUSH.state = "on"; toast("Upozornenia zapnuté 🔔"); render(true); renderWx(); }); return; }
+    if (isIOS() && !standalone()) { openModal(vInstall()); return; }
+    if (!PUSH.ok) { toast("Tento prehliadač upozornenia nepodporuje. Skús Chrome, Edge, Firefox alebo Safari."); return; }
+    var ask = Notification.requestPermission();
+    Promise.resolve(ask).then(function (perm) {
+      if (perm !== "granted") { PUSH.state = "denied"; toast("Upozornenia sú zakázané. Povoľ ich v nastaveniach prehliadača pre túto stránku."); return; }
+      return navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
+        return reg.pushManager.getSubscription().then(function (s) { return s || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(C.VAPID_PUBLIC) }); });
+      }).then(function (sub) { return api.pushSave(sub).then(function () { PUSH.sub = sub; PUSH.state = "on"; toast("Upozornenia zapnuté 🔔 Ak bude na tvoju jazdu zlé počasie, dáme ti vedieť."); }); });
+    }).catch(err).then(function () { if (S.tab === "profile") render(true); renderWx(); });
+  }
+  function pushOff() {
+    var sub = PUSH.sub, done = function () { PUSH.sub = null; PUSH.state = "off"; toast("Upozornenia vypnuté."); render(true); renderWx(); };
+    if (api.mode === "demo" || !sub) return api.pushDelete(sub && sub.endpoint).then(done, done);
+    api.pushDelete(sub.endpoint).catch(function () {}).then(function () { return sub.unsubscribe(); }).catch(function () {}).then(done);
+  }
+  function vInstall() {
+    return '<div class="sh-top"><button class="icb" data-act="closem" aria-label="Zavrieť">' + IC.close + '</button><b>Upozornenia na iPhone</b></div><div class="pad">' +
+      '<p class="sub" style="margin-bottom:14px">Na iPhone posiela Safari upozornenia len appkám pridaným na plochu. Zaberie to 10 sekúnd:</p>' +
+      '<ol class="steps"><li>Dole v Safari ťukni na <b>Zdieľať</b> <span class="kbd">⬆︎</span></li><li>Vyber <b>Pridať na plochu</b></li><li>Otvor <b>EB Ride</b> z plochy a ťukni znova na <b>Upozorni ma</b></li></ol>' +
+      '<p class="info">Appka z plochy sa otvára na celú obrazovku – ako normálna aplikácia.</p></div>';
+  }
+
+  /* ---------------- obrázok do Instagram Story ---------------- */
+  var STORY = { blob: null, url: null, bg: 0, id: null };
+  function loadImg(src) { return new Promise(function (res) { if (!src) return res(null); var i = new Image(); i.crossOrigin = "anonymous"; i.onload = function () { res(i); }; i.onerror = function () { res(null); }; i.src = src; }); }
+  function rr(x, c, X, Y, W, H, R) { x.beginPath(); x.moveTo(X + R, Y); x.arcTo(X + W, Y, X + W, Y + H, R); x.arcTo(X + W, Y + H, X, Y + H, R); x.arcTo(X, Y + H, X, Y, R); x.arcTo(X, Y, X + W, Y, R); x.closePath(); if (c) { x.fillStyle = c; x.fill(); } }
+  function wrap(x, text, maxW, maxL) {
+    var words = String(text).split(/\s+/), lines = [], cur = "";
+    words.forEach(function (w) { var t = cur ? cur + " " + w : w; if (x.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; });
+    if (cur) lines.push(cur);
+    if (lines.length > maxL) { lines = lines.slice(0, maxL); var l = lines[maxL - 1]; while (x.measureText(l + "…").width > maxW && l.length) l = l.slice(0, -1); lines[maxL - 1] = l + "…"; }
+    return lines;
+  }
+  function makeStory(r, photoUrl) {
+    var W = 1080, H = 1920, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    var x = cv.getContext("2d"), ty = TYPES[r.type] || TYPES.mtb;
+    var people = r.participants.slice(0, 6);
+    var fonts = document.fonts && document.fonts.load ? Promise.all(["800 76px Poppins", "700 40px Poppins", "500 34px Poppins"].map(function (f) { return document.fonts.load(f).catch(function () {}); })) : Promise.resolve();
+    return Promise.all([fonts, loadImg(photoUrl), loadImg(C.LOGO_URL)].concat(people.map(function (u) { return loadImg(prof(u).avatar_url); }))).then(function (res) {
+      var photo = res[1], logo = res[2], avs = res.slice(3);
+      // pozadie
+      if (photo) {
+        var s = Math.max(W / photo.width, H / photo.height), pw = photo.width * s, ph = photo.height * s;
+        x.drawImage(photo, (W - pw) / 2, (H - ph) / 2, pw, ph);
+        var g = x.createLinearGradient(0, 0, 0, H); g.addColorStop(0, "rgba(10,14,30,.55)"); g.addColorStop(.3, "rgba(10,14,30,.08)"); g.addColorStop(.55, "rgba(10,14,30,.35)"); g.addColorStop(1, "rgba(10,14,30,.92)");
+        x.fillStyle = g; x.fillRect(0, 0, W, H);
+      } else {
+        var g2 = x.createLinearGradient(0, 0, W * .4, H); g2.addColorStop(0, "#2a56ff"); g2.addColorStop(.55, "#1b3fc4"); g2.addColorStop(1, "#0b1233");
+        x.fillStyle = g2; x.fillRect(0, 0, W, H);
+        x.globalAlpha = .08; x.strokeStyle = "#fff"; x.lineWidth = 3;
+        for (var k = 0; k < 9; k++) { x.beginPath(); x.ellipse(W * .82, H * .2, 140 + k * 95, 90 + k * 70, -.5, 0, Math.PI * 2); x.stroke(); }
+        x.globalAlpha = 1;
+      }
+      // logo EliteBiker + RIDE
+      var lh = 74, lw = logo ? logo.width * lh / logo.height : 0;
+      x.font = "800 30px Poppins, sans-serif"; var rw = x.measureText("RIDE").width + 9 * 3 + 30;
+      var cw = (logo ? lw + 22 : 0) + rw + 52;
+      rr(x, "#fff", 72, 96, cw, 128, 30);
+      if (logo) x.drawImage(logo, 98, 96 + (128 - lh) / 2, lw, lh);
+      var px = 98 + (logo ? lw + 22 : 0);
+      rr(x, "#11131a", px, 96 + 38, rw, 52, 12);
+      x.fillStyle = "#fff"; x.textBaseline = "middle"; x.textAlign = "left";
+      var tx = px + 15; "RIDE".split("").forEach(function (ch) { x.fillText(ch, tx, 96 + 64 + 1); tx += x.measureText(ch).width + 9; });
+      // trasa
+      var box = { x: 110, y: 300, w: 860, h: 700 };
+      var route = r.route && r.route.length > 1 ? r.route : null;
+      if (route) {
+        var lat0 = route.reduce(function (s, p) { return s + p[0]; }, 0) / route.length, kx = Math.cos(lat0 * Math.PI / 180);
+        var xs = route.map(function (p) { return p[1] * kx; }), ys = route.map(function (p) { return -p[0]; });
+        var mnx = Math.min.apply(0, xs), mxx = Math.max.apply(0, xs), mny = Math.min.apply(0, ys), mxy = Math.max.apply(0, ys);
+        var sc = Math.min(box.w / Math.max(mxx - mnx, 1e-6), box.h / Math.max(mxy - mny, 1e-6));
+        var ox = box.x + (box.w - (mxx - mnx) * sc) / 2, oy = box.y + (box.h - (mxy - mny) * sc) / 2;
+        var P = route.map(function (p, i) { return [ox + (xs[i] - mnx) * sc, oy + (ys[i] - mny) * sc]; });
+        x.lineJoin = "round"; x.lineCap = "round";
+        x.shadowColor = "rgba(0,0,0,.45)"; x.shadowBlur = 36;
+        x.strokeStyle = "rgba(255,255,255,.35)"; x.lineWidth = 34; x.beginPath(); P.forEach(function (p, i) { if (i) x.lineTo(p[0], p[1]); else x.moveTo(p[0], p[1]); }); x.stroke();
+        x.shadowBlur = 0; x.strokeStyle = "#fff"; x.lineWidth = 14; x.stroke();
+        var a = P[0], b = P[P.length - 1];
+        x.fillStyle = "#16a34a"; x.beginPath(); x.arc(a[0], a[1], 22, 0, 7); x.fill(); x.lineWidth = 8; x.strokeStyle = "#fff"; x.stroke();
+        if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 40) { x.fillStyle = "#11131a"; x.beginPath(); x.arc(b[0], b[1], 22, 0, 7); x.fill(); x.stroke(); }
+      } else {
+        x.fillStyle = "rgba(255,255,255,.14)"; x.beginPath(); x.arc(W / 2, 650, 190, 0, 7); x.fill();
+        x.font = "200px sans-serif"; x.textAlign = "center"; x.fillText("🚴", W / 2, 660); x.textAlign = "left";
+      }
+      // názov, dátum, miesto
+      x.shadowColor = "rgba(0,0,0,.35)"; x.shadowBlur = 18; x.fillStyle = "#fff"; x.textBaseline = "alphabetic";
+      x.font = "800 76px Poppins, sans-serif";
+      var tl = wrap(x, r.title, W - 144, 2), y = 1130;
+      tl.forEach(function (l) { x.fillText(l, 72, y); y += 88; });
+      x.font = "500 36px Poppins, sans-serif"; x.fillStyle = "rgba(255,255,255,.88)";
+      var place = (r.meet.label || "").split(",")[0];
+      wrap(x, ty[0] + " · " + dLabel(r.starts_at) + (place ? " · " + place : ""), W - 144, 2).forEach(function (l) { x.fillText(l, 72, y); y += 48; });
+      x.shadowBlur = 0;
+      // čísla
+      var hrs = Math.round((new Date(r.ends_at) - new Date(r.starts_at)) / 36e5), multi = hrs > 20;
+      var dist = r.distance_km || (route ? routeKm(route) : null);
+      var stats = [];
+      if (dist) stats.push([km(dist), "km"]);
+      if (r.elevation_m) stats.push([String(r.elevation_m), "m stúpania"]);
+      stats.push([multi ? String(Math.round(hrs / 24) || 1) : String(hrs), multi ? "dni" : "hodiny"]);
+      stats.push([String(r.participants.length), r.participants.length === 1 ? "jazdec" : "jazdcov"]);
+      var sy = Math.max(y + 30, 1330), sw = (W - 144 - (stats.length - 1) * 20) / stats.length;
+      stats.forEach(function (st, i) {
+        var sx = 72 + i * (sw + 20);
+        rr(x, "rgba(255,255,255,.14)", sx, sy, sw, 170, 28);
+        x.fillStyle = "#fff"; x.font = "800 62px Poppins, sans-serif"; x.textAlign = "center"; x.fillText(st[0], sx + sw / 2, sy + 86);
+        x.font = "500 28px Poppins, sans-serif"; x.fillStyle = "rgba(255,255,255,.8)"; x.fillText(st[1], sx + sw / 2, sy + 134);
+      });
+      x.textAlign = "left";
+      // partia
+      var ay = sy + 250;
+      people.forEach(function (u, i) {
+        var cx = 72 + 58 + i * 82, cy = ay + 58, im = avs[i];
+        x.save(); x.beginPath(); x.arc(cx, cy, 58, 0, 7); x.closePath(); x.fillStyle = "#fff"; x.fill();
+        x.beginPath(); x.arc(cx, cy, 52, 0, 7); x.clip();
+        if (im) x.drawImage(im, cx - 52, cy - 52, 104, 104);
+        else { x.fillStyle = "hsl(" + hue(u) + ",55%,48%)"; x.fillRect(cx - 52, cy - 52, 104, 104); x.fillStyle = "#fff"; x.font = "700 46px Poppins, sans-serif"; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText((prof(u).display_name || "?").charAt(0).toUpperCase(), cx, cy + 2); x.textAlign = "left"; x.textBaseline = "alphabetic"; }
+        x.restore();
+      });
+      var names = r.participants.map(function (u) { return u === S.uid ? "ja" : (prof(u).display_name || "biker").split(" ")[0]; });
+      var nm = names.length > 4 ? names.slice(0, 3).join(", ") + " a ďalší " + (names.length - 3) : names.length > 1 ? names.slice(0, -1).join(", ") + " a " + names[names.length - 1] : names[0];
+      x.font = "700 36px Poppins, sans-serif"; x.fillStyle = "#fff";
+      wrap(x, nm, W - 144, 2).forEach(function (l, i) { x.fillText(l, 72, ay + 170 + i * 46); });
+      // päta
+      x.font = "600 30px Poppins, sans-serif"; x.fillStyle = "rgba(255,255,255,.78)";
+      x.fillText("Jazdi s partiou · EliteBiker Ride", 72, H - 90);
+      x.textAlign = "right"; x.fillText("@elitebiker.sk", W - 72, H - 90); x.textAlign = "left";
+      return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, "image/jpeg", .92); });
+    });
+  }
+  function routeKm(pts) { var d = 0; for (var i = 1; i < pts.length; i++) { var a = pts[i - 1], b = pts[i], R = 6371, dl = (b[0] - a[0]) * Math.PI / 180, dn = (b[1] - a[1]) * Math.PI / 180, h = Math.sin(dl / 2) * Math.sin(dl / 2) + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * Math.sin(dn / 2) * Math.sin(dn / 2); d += 2 * R * Math.asin(Math.sqrt(h)); } return Math.round(d * 10) / 10; }
+  function openStory(id) {
+    var r = find(id); if (!r) return;
+    STORY.id = id; STORY.blob = null;
+    var go = function () { var ph = S.photos[id] || []; STORY.bg = ph.length ? 1 : 0; drawStoryModal(); buildStory(); };
+    if (S.photos[id]) go(); else api.photos(id).then(function (p) { S.photos[id] = p; go(); }).catch(function () { S.photos[id] = []; go(); });
+  }
+  function drawStoryModal() {
+    var r = find(STORY.id), ph = (S.photos[STORY.id] || []).slice(0, 8), canShare = !!(navigator.canShare && window.File);
+    openModal('<div class="sh-top"><button class="icb" data-act="closem" aria-label="Zavrieť">' + IC.close + '</button><b>Instagram Story</b></div><div class="pad storybox">' +
+      '<div class="storyprev" id="storyPrev"><div class="loading">Kreslím obrázok…</div></div>' +
+      (ph.length ? '<span class="fl">Pozadie</span><div class="bgs"><button class="' + (STORY.bg === 0 ? "on" : "") + '" data-act="story-bg" data-i="0"><span class="blue"></span></button>' + ph.map(function (p, i) { return '<button class="' + (STORY.bg === i + 1 ? "on" : "") + '" data-act="story-bg" data-i="' + (i + 1) + '"><img src="' + esc(p.url) + '" alt="" crossorigin="anonymous"></button>'; }).join("") + "</div>" : '<p class="small-note">Tip: pridaj k jazde fotku a použijeme ju ako pozadie.</p>') +
+      '<div class="lacts" style="margin-top:14px">' + (canShare ? '<button class="btn igb" data-act="story-share" disabled>' + sz(IC.ig, 16) + "Zdieľať do Instagramu</button>" : "") + '<button class="btn gh" data-act="story-save" disabled>Uložiť obrázok</button></div>' +
+      '<p class="info">V Instagrame vyber <b>Príbeh</b> a označ <b>@elitebiker.sk</b> a partiu.</p></div>');
+  }
+  function buildStory() {
+    var r = find(STORY.id), ph = S.photos[STORY.id] || [], bg = STORY.bg ? (ph[STORY.bg - 1] || {}).url : null, id = STORY.id, bgi = STORY.bg;
+    makeStory(r, bg).then(function (b) {
+      if (STORY.id !== id || STORY.bg !== bgi) return;
+      if (!b) throw new Error("Obrázok sa nepodarilo vytvoriť.");
+      if (STORY.url) URL.revokeObjectURL(STORY.url);
+      STORY.blob = b; STORY.url = URL.createObjectURL(b);
+      var p = $("storyPrev"); if (p) p.innerHTML = '<img src="' + STORY.url + '" alt="Náhľad Instagram Story">';
+      [].forEach.call(document.querySelectorAll("#modal .lacts .btn"), function (x) { x.disabled = false; });
+    }).catch(function (e) { var p = $("storyPrev"); if (p) p.innerHTML = '<p class="err">' + esc(e.message || "Obrázok sa nepodarilo vytvoriť.") + "</p>"; });
+  }
+  function storyFile() { return new File([STORY.blob], "elitebiker-ride-story.jpg", { type: "image/jpeg" }); }
+  function storyShare() {
+    if (!STORY.blob) return;
+    var f = storyFile();
+    if (navigator.canShare && navigator.canShare({ files: [f] })) navigator.share({ files: [f], title: "EliteBiker Ride" }).catch(function () {});
+    else storySave();
+  }
+  function storySave() {
+    if (!STORY.url) return;
+    var a = document.createElement("a"); a.href = STORY.url; a.download = "elitebiker-ride-story.jpg"; document.body.appendChild(a); a.click(); a.remove();
+    toast(isIOS() ? "Podrž obrázok a vyber „Pridať do Fotiek“." : "Obrázok sa uložil – pridaj ho do Instagram Story.");
+  }
+  function canStory(r) { return going(r) && new Date(r.starts_at) <= new Date(Date.now() + 30 * 60e3); }
 
   /* ---------------- pozývací odkaz ---------------- */
   var LNK = null;
@@ -712,8 +986,9 @@
 
   /* ---------------- upozornenia ---------------- */
   function vNotif() {
-    var inv = S.rides.filter(invitedMe), html = '<div class="sh-top"><button class="icb" data-act="closem">' + IC.close + '</button><b>Upozornenia</b></div><div class="pad">';
-    if (!inv.length && !S.fr.incoming.length) html += '<div class="empty-state"><i>🔔</i><b>Nič nové</b>Tu uvidíš pozvánky na jazdy a žiadosti o priateľstvo.</div>';
+    var inv = S.rides.filter(invitedMe), bad = wxBadRides(), html = '<div class="sh-top"><button class="icb" data-act="closem">' + IC.close + '</button><b>Upozornenia</b></div><div class="pad">';
+    html += bad.map(function (r) { var w = wxEval(r); return '<div class="card nt new wxn" data-act="open" data-id="' + r.id + '"><span class="wxe">' + wxEmoji(w.sym) + '</span><div style="flex:1"><p><b>Zlé počasie:</b> ' + esc(r.title) + " – " + dShort(r.starts_at).toLowerCase() + " o " + hm(r.starts_at) + "</p><small>Hlásia " + esc(w.bad.join(", ")) + " · " + (w.tmin === w.tmax ? w.tmax : w.tmin + "–" + w.tmax) + " °C" + (w.pr ? " · " + String(w.pr).replace(".", ",") + " mm" : "") + "</small></div></div>"; }).join("");
+    if (!inv.length && !S.fr.incoming.length && !bad.length) html += '<div class="empty-state"><i>🔔</i><b>Nič nové</b>Tu uvidíš pozvánky na jazdy a žiadosti o priateľstvo.</div>';
     html += S.fr.incoming.map(function (id) { return '<div class="card nt new">' + pic(id) + '<div style="flex:1"><p><b>' + hn(id) + '</b> ti poslal žiadosť o priateľstvo</p><div class="acts"><button class="btn sm" data-act="accept" data-u="' + id + '">Prijať</button><button class="btn sm gh" data-act="decline" data-u="' + id + '">Odmietnuť</button></div></div></div>'; }).join("");
     html += inv.map(function (r) { return '<div class="card nt new">' + pic(r.host) + '<div style="flex:1"><p><b>' + hn(r.host) + "</b> ťa pozýva: <b>" + esc(r.title) + "</b> – " + dShort(r.starts_at).toLowerCase() + " o " + hm(r.starts_at) + '</p><div class="acts"><button class="btn sm" data-act="join" data-id="' + r.id + '">Pridám sa</button><button class="btn sm gh" data-act="open" data-id="' + r.id + '">Detail</button></div></div></div>'; }).join("");
     return html + "</div>";
@@ -751,6 +1026,13 @@
       case "eye": (function () { var i = $(el.dataset.for); if (i) { i.type = i.type === "password" ? "text" : "password"; el.classList.toggle("on", i.type === "text"); } })(); break;
       case "pw": openPw(); break;
       case "cal": openCal(id); break;
+      case "push-on": pushOn(); break;
+      case "push-off": pushOff(); break;
+      case "push-test": api.pushTest().then(function (d) { toast(d && d.sent ? "Skúšobné upozornenie je na ceste 🔔" : "Na tomto zariadení nie sú zapnuté upozornenia."); }).catch(err); break;
+      case "story": openStory(id); break;
+      case "story-bg": STORY.bg = +el.dataset.i; STORY.blob = null; [].forEach.call(document.querySelectorAll("#modal .bgs button"), function (b) { b.classList.toggle("on", b === el); }); [].forEach.call(document.querySelectorAll("#modal .lacts .btn"), function (b) { b.disabled = true; }); $("storyPrev").innerHTML = '<div class="loading">Kreslím obrázok…</div>'; buildStory(); break;
+      case "story-share": storyShare(); break;
+      case "story-save": storySave(); break;
       case "ics": (function () { var r = find(id); if (r) { downloadIcs(r); closeModal(); } })(); break;
       case "more": saveD(); D.more = el.classList.contains("open") ? "closed" : true; drawCreate(true); break;
       case "create": openCreate(); break;
@@ -780,7 +1062,7 @@
       case "del-sc": api.deleteShortcut(id).then(function () { S.sc = S.sc.filter(function (s) { return s.id !== id; }); render(true); }).catch(err); break;
       case "reward": (function () { var x = REWARDS[+el.dataset.i], st = S.stats, pts = st ? st.joined * 20 + st.hosted * 50 + st.photos * 10 : 0;
         toast(pts >= x[3] ? "Ukáž túto obrazovku v predajni EliteBiker – <b>" + x[1] + "</b> ti radi dáme." : "Na „" + x[1] + "“ ti chýba ešte " + (x[3] - pts) + " bodov."); })(); break;
-      case "logout": api.logout().then(function () { location.href = location.pathname; }); break;
+      case "logout": (PUSH.sub ? api.pushDelete(PUSH.sub.endpoint).catch(function () {}) : Promise.resolve()).then(function () { return api.logout(); }).then(function () { location.href = location.pathname; }); break;
       case "delete-acc": if (el.dataset.sure) { api.deleteAccount().then(function () { location.href = location.pathname; }).catch(err); } else { el.dataset.sure = 1; el.textContent = "Naozaj? Ťukni znova"; } break;
     }
   });
@@ -827,6 +1109,7 @@
     } else if (h.indexOf("#jazda-") === 0) setTimeout(function () { openRide(h.slice(7)); }, 200);
     try { if (sessionStorage.getItem("eb_setpw")) { sessionStorage.removeItem("eb_setpw"); setTimeout(function () { openPw(); toast("Prihlásený ✓ Nastav si heslo, nabudúce bez kódu."); }, 400); } } catch (e) {}
     api.subscribeChanges(function () { refresh(); });
+    pushInit();
     api.myTemplates().then(function (l) { S.tpl = buildTemplates(l); if (S.tab === "feed" && !$("sheet").classList.contains("open")) render(true); }).catch(function () {});
   }
   function boot() {

@@ -169,6 +169,23 @@
       D.rides.forEach(function (r) { if (new Date(r.ends_at) < now && r.participants.indexOf("me") > -1) { if (r.host === "me") h++; else j++; } (r.photos || []).forEach(function (p) { if (p.user_id === "me") ph++; }); });
       return wait({ joined: j + 12, hosted: h + 3, photos: ph + 4 });
     },
+    weather: function (points) {
+      var out = {}, now = new Date(); now.setMinutes(0, 0, 0);
+      points.forEach(function (p, idx) {
+        var k = p.lat.toFixed(2) + "," + p.lng.toFixed(2), arr = [];
+        for (var h = 0; h < 216; h++) {
+          var t = now.getTime() + h * 36e5, hr = new Date(t).getHours(), day = Math.floor(h / 24);
+          var rainy = (day + idx) % 3 === 1 && hr >= 11 && hr <= 19, windy = day === 4;
+          arr.push({ t: t, dur: 1, temp: Math.round((6 + 5 * Math.sin((hr - 8) / 24 * 2 * Math.PI)) * 10) / 10, wind: windy ? 11 : 3, gust: null,
+            sym: rainy ? (hr % 4 === 0 ? "heavyrain" : "rain") : hr > 7 && hr < 17 ? (day % 2 ? "partlycloudy_day" : "clearsky_day") : "cloudy", pr: rainy ? 1.2 : 0, pop: null, thu: null });
+        }
+        out[k] = arr;
+      });
+      return wait(out);
+    },
+    pushSave: function () { D.push = true; save(); return wait(); },
+    pushDelete: function () { D.push = false; save(); return wait(); },
+    pushTest: function () { return wait({ sent: 1 }); },
     deleteAccount: function () { localStorage.removeItem(KEY); load(); return wait(); }
   };
   window.EBApi = api;

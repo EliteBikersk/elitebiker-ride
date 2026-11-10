@@ -446,3 +446,65 @@ revoke execute on function public.invite_info(text) from public;
 grant execute on function public.invite_info(text) to anon, authenticated;
 revoke execute on function public.redeem_invite(text) from anon, public;
 grant execute on function public.redeem_invite(text) to authenticated;
+
+-- ---------------------------------------------------------------------
+-- 11. Počasie a upozornenia (web push)
+-- ---------------------------------------------------------------------
+create extension if not exists pg_net;
+
+-- tajné hodnoty len pre server (žiadne politiky = prehliadač nevidí nič)
+create table if not exists public.app_secrets (
+  name  text primary key,
+  value text not null
+);
+alter table public.app_secrets enable row level security;
+revoke all on public.app_secrets from anon, authenticated;
+
+-- predpovede z MET Norway (cache na 1 h)
+create table if not exists public.weather_cache (
+  key        text primary key,
+  data       jsonb not null,
+  fetched_at timestamptz not null default now()
+);
+alter table public.weather_cache enable row level security;
+revoke all on public.weather_cache from anon, authenticated;
+
+-- zariadenia, ktoré chcú upozornenia
+create table if not exists public.push_subscriptions (
+  endpoint   text primary key,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  p256dh     text not null,
+  auth       text not null,
+  weather    boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "upozornenia – vlastné" on public.push_subscriptions;
+create policy "upozornenia – vlastné" on public.push_subscriptions for select to authenticated using (user_id = auth.uid());
+drop policy if exists "upozornenia – zrušenie" on public.push_subscriptions;
+create policy "upozornenia – zrušenie" on public.push_subscriptions for delete to authenticated using (user_id = auth.uid());
+revoke all on public.push_subscriptions from anon;
+grant select, delete on public.push_subscriptions to authenticated;
+
+-- uloženie zariadenia (ak sa na ňom prihlási iný človek, prepíše sa)
+create or replace function public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'Nie si prihlásený.'; end if;
+  if p_endpoint !~ '^https://' or char_length(p_endpoint) > 1000 then raise exception 'Neplatné zariadenie.'; end if;
+  insert into push_subscriptions (endpoint, user_id, p256dh, auth)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth)
+  on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth, created_at = now();
+end $$;
+revoke execute on function public.save_push_subscription(text, text, text) from anon, public;
+grant execute on function public.save_push_subscription(text, text, text) to authenticated;
+
+-- ktoré jazdy už dostali upozornenie na počasie
+create table if not exists public.ride_weather_alerts (
+  ride_id  uuid primary key references public.rides(id) on delete cascade,
+  summary  text,
+  sent_at  timestamptz not null default now()
+);
+alter table public.ride_weather_alerts enable row level security;
+revoke all on public.ride_weather_alerts from anon, authenticated;

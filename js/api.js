@@ -274,6 +274,15 @@
       });
     },
 
+    /* ---------- počasie a upozornenia ---------- */
+    weather: function (points) { return fn("weather", { points: points }).then(function (d) { return d.data || {}; }); },
+    pushSave: function (sub) {
+      var j = sub.toJSON();
+      return sb.rpc("save_push_subscription", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth }).then(function (r) { fail(r.error, "Upozornenia sa nepodarilo zapnúť."); });
+    },
+    pushDelete: function (endpoint) { return sb.from("push_subscriptions").delete().eq("endpoint", endpoint).then(function (r) { fail(r.error); }); },
+    pushTest: function () { return fn("weather-alerts", { test: true }); },
+
     /* ---------- účet ---------- */
     deleteAccount: function () { return fn("delete-account").then(function () { return sb.auth.signOut(); }); }
   };
