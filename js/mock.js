@@ -65,7 +65,8 @@
   function km(a, b) { var R = 6371, dl = (b.lat - a.lat) * Math.PI / 180, dn = (b.lng - a.lng) * Math.PI / 180, x = Math.sin(dl / 2) * Math.sin(dl / 2) + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dn / 2) * Math.sin(dn / 2); return 2 * R * Math.asin(Math.min(1, Math.sqrt(x))); }
   function visible(r) {
     if (r.host === "me" || r.participants.indexOf("me") > -1 || r.audience.indexOf("me") > -1) return true;
-    return r.visibility === "public" && new Date(r.ends_at) > new Date() && !!D.loc && km(D.loc, r.meet) <= 30;
+    var L = D.loc || (D.me && D.me.city ? { lat: 49.12, lng: 18.42 } : null);
+    return r.visibility === "public" && new Date(r.ends_at) > new Date() && !!L && km(L, r.meet) <= 30;
   }
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
   function blankMe(email) { return { id: "me", ig_username: null, fb_name: null, display_name: "", age: null, city: "", bike_types: [], avatar_url: null, email: email }; }
@@ -101,7 +102,6 @@
     },
     verifyEmailCode: function () { return wait(); },
     logout: function () { localStorage.removeItem(KEY); load(); return wait(); },
-    logoutAll: function () { return api.logout(); },
     isAdmin: function () { return wait(false); },
     me: function () { return wait(copy(D.me)); },
     profile: function (id) { return wait(copy(prof(id))); },
@@ -120,7 +120,8 @@
       return wait(D.profiles.filter(function (p) { return q.length > 2 && (n(p.display_name).indexOf(q) > -1 || n(p.ig_username).indexOf(q) > -1 || n(p.fb_name).indexOf(q) > -1); })
         .slice(0, 10).map(function (p) { return { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url, city: p.city, ig_username: p.ig_username }; }));
     },
-    location: function () { return wait(D.loc ? copy(D.loc) : null); },
+    // v skúšobnom režime bez internetu: poloha = Považská Bystrica, ak je v profile mesto
+    location: function () { return wait(D.loc ? copy(D.loc) : D.me && D.me.city ? { lat: 49.12, lng: 18.42, label: D.me.city } : null); },
     setLocation: function (l) { D.loc = { lat: Math.round(l.lat * 100) / 100, lng: Math.round(l.lng * 100) / 100, label: l.label || null }; changed(); return wait(copy(D.loc)); },
     clearLocation: function () { D.loc = null; changed(); return wait(); },
     friendships: function () { return wait({ friends: D.friends.slice(), incoming: D.incoming.slice(), outgoing: D.outgoing.slice() }); },
@@ -208,7 +209,6 @@
     pushSave: function () { D.push = true; save(); return wait(); },
     pushDelete: function () { D.push = false; save(); return wait(); },
     pushTest: function () { return wait({ sent: 1 }); },
-    exportData: function () { return wait({ exported_at: new Date().toISOString(), profile: copy(D.me), location: D.loc || null, rides_hosted: D.rides.filter(function (r) { return r.host === "me"; }).map(function (r) { return { title: r.title, starts_at: r.starts_at, visibility: r.visibility }; }) }); },
     deleteAccount: function () { localStorage.removeItem(KEY); load(); return wait(); }
   };
   window.EBApi = api;

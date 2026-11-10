@@ -120,7 +120,6 @@
       return sb.auth.verifyOtp({ email: email, token: code, type: "email" }).then(function (r) { fail(r.error, "Kód nesedí alebo vypršal. Pošli si nový."); });
     },
     logout: function () { return sb.auth.signOut(); },
-    logoutAll: function () { return sb.auth.signOut({ scope: "global" }); },
     isAdmin: function () { return sb.rpc("admin_status").then(function (r) { return !r.error && r.data && r.data.admin; }); },
 
     /* ---------- profily ---------- */
@@ -296,7 +295,6 @@
     pushTest: function () { return fn("weather-alerts", { test: true }); },
 
     /* ---------- účet ---------- */
-    exportData: function () { return sb.rpc("export_my_data").then(function (r) { fail(r.error, "Údaje sa nepodarilo pripraviť."); return r.data; }); },
     deleteAccount: function () { return fn("delete-account").then(function () { return sb.auth.signOut(); }); }
   };
   window.EBApi = api;

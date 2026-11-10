@@ -812,3 +812,15 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .admlink{display:flex;align-items:center;gap:12px;background:var(--ink);color:#fff;border-radius:16px;padding:14px 16px;margin-top:14px;text-decoration:none;font-weight:700}
 .admlink .grow{flex:1}.admlink small{display:block;font-weight:500;opacity:.75;font-size:12px}
 .kv small.em{display:block}
+
+/* ---------- pozvanie: kam poslať odkaz ---------- */
+.shgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 6px}
+.shgrid button{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;font-size:11.5px;font-weight:600;color:var(--tx);padding:2px 0;min-width:0;line-height:1.2;text-align:center}
+.shgrid button[disabled]{opacity:.45}
+.shi{width:52px;height:52px;border-radius:999px;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 12px rgba(17,19,26,.12)}
+.shi svg{width:24px;height:24px}
+.shgrid button:not([disabled]):active .shi{transform:scale(.94)}
+@media (max-width:340px){.shgrid{grid-template-columns:repeat(3,1fr)}}
+/* skratka Verejnosť */
+.scs .pubsc.on{border-color:#16a34a;background:#16a34a;color:#fff}
+.scs .pubsc.on small{color:#dcfce7}

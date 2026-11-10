@@ -12,11 +12,11 @@ Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pri
 - **Zopakuj obvyklú jazdu** jedným ťukom.
 - **Kto jazdu uvidí?** – 🌍 **verejná** (každý biker do 30 km od stretka sa môže pridať), 👥 **pre partiu** (pozvaní môžu pozvať ďalších)
   alebo 🔒 **len pre vybraných** (ďalej sa nedá poslať). Skratky ako na Snapchate, pozývanie odkazom aj ľudí bez appky.
-- **Poloha pre verejné jazdy** – len približná (~1 km), vidí ju iba majiteľ.
+- **Verejné jazdy v okolí** – podľa mesta v profile (do 30 km), presná poloha sa nezisťuje.
 - **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú.
 - **EliteBiker Klub**: body počíta server, odmeny (kontrola a servis zdarma…), história bonusov, zľavy pre členov, odkazy do e-shopu.
 - **Administrácia** (`admin.html`) s dvojstupňovým overením: používatelia, body, vydanie odmeny, verejné jazdy, záznam zmien.
-- **Ochrana**: RLS + stĺpcové práva, súkromné profily, limity proti zneužitiu, tajné kľúče vo Vaulte, CSP, vlastné písmo, export a zmazanie údajov.
+- **Ochrana**: RLS + stĺpcové práva, súkromné profily, limity proti zneužitiu, tajné kľúče vo Vaulte, CSP, vlastné písmo, zmazanie účtu a údajov.
 - Responzívne (mobil, tablet, počítač), dá sa pridať na plochu telefónu.
 
 ## Technicky

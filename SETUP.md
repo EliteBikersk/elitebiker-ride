@@ -66,7 +66,7 @@ insert into private.admins (user_id) values ('<uuid z Authentication → Users>'
 
 ### Verejné jazdy a body
 - Jazda má `visibility`: `public` (každý do 30 km od stretka podľa `user_locations`), `friends` (pozvaní, môžu pozývať ďalej), `private` (len pozvaní, pozýva len organizátor).
-- Poloha používateľa sa ukladá zaokrúhlená na 2 desatinné miesta (~1 km) a vidí ju len on.
+- Poloha používateľa = stred mesta z profilu (geokódovanie Nominatim, `autoLocation`), uložená zaokrúhlená na 2 desatinné miesta (~1 km) v `user_locations`; vidí ju len on. Pri zmene mesta sa prepočíta.
 - EB body počíta server (`my_points()`): +20 spoločná jazda, +50 zorganizovaná jazda (aspoň 2 ľudia), +10 fotka (max 5 na jazdu), + bonusy − odmeny z `point_adjustments`.
 
 ### Ochrana
