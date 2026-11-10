@@ -1,15 +1,3 @@
 # Nastavenia pre Supabase CLI (supabase functions deploy)
-[functions.instagram-auth]
-verify_jwt = false
-
-[functions.ig-media]
-verify_jwt = false
-
-[functions.strava-auth]
-verify_jwt = false
-
-[functions.strava-data]
-verify_jwt = false
-
 [functions.delete-account]
 verify_jwt = false

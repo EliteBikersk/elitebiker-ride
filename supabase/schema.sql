@@ -5,6 +5,7 @@
 -- =====================================================================
 
 create extension if not exists pg_cron;
+create extension if not exists unaccent with schema extensions;
 
 -- pomocné funkcie pre pravidlá prístupu sú v schéme private (nie sú dostupné cez API)
 create schema if not exists private;
@@ -16,34 +17,14 @@ grant usage on schema private to authenticated;
 -- ---------------------------------------------------------------------
 create table if not exists public.profiles (
   id               uuid primary key references auth.users(id) on delete cascade,
-  ig_username      text unique check (ig_username ~ '^[a-z0-9._]{1,30}$'),
-  ig_user_id       text unique,
-  ig_verified      boolean not null default false,   -- true = prihlásený cez Instagram
   display_name     text check (char_length(display_name) <= 60),
+  ig_username      text unique check (ig_username ~ '^[a-z0-9._]{1,30}$'),  -- Instagram (nepovinné)
+  fb_name          text check (char_length(fb_name) <= 100),               -- Facebook meno alebo odkaz (nepovinné)
   avatar_url       text,
   age              int check (age between 14 and 99),
   city             text check (char_length(city) <= 60),
   bike_types       text[] not null default '{}',
-  strava_connected boolean not null default false,
   created_at       timestamptz not null default now()
-);
-
--- Tokeny – bez politík, takže k nim má prístup len server (service role)
-create table if not exists public.ig_tokens (
-  user_id      uuid primary key references public.profiles(id) on delete cascade,
-  ig_user_id   text not null,
-  access_token text not null,
-  expires_at   timestamptz,
-  updated_at   timestamptz not null default now()
-);
-create table if not exists public.strava_tokens (
-  user_id       uuid primary key references public.profiles(id) on delete cascade,
-  athlete_id    bigint not null unique,
-  access_token  text not null,
-  refresh_token text not null,
-  expires_at    timestamptz not null,
-  scope         text,
-  updated_at    timestamptz not null default now()
 );
 
 -- ---------------------------------------------------------------------
@@ -174,19 +155,11 @@ end $$;
 -- ---------------------------------------------------------------------
 -- 5. Triggery
 -- ---------------------------------------------------------------------
--- nový používateľ → profil (údaje z Instagramu prídu v metadátach)
+-- nový používateľ → prázdny profil (meno, vek a kontakty doplní v aplikácii)
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
-declare m jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
 begin
-  insert into profiles (id, display_name, avatar_url, ig_username, ig_user_id, ig_verified)
-  values (new.id,
-          nullif(m->>'name',''),
-          nullif(m->>'avatar_url',''),
-          nullif(lower(m->>'ig_username'),''),
-          nullif(m->>'ig_user_id',''),
-          coalesce((m->>'ig_verified')::boolean, false))
-  on conflict (id) do nothing;
+  insert into profiles (id) values (new.id) on conflict (id) do nothing;
   return new;
 end $$;
 drop trigger if exists on_auth_user_created on auth.users;
@@ -204,28 +177,24 @@ drop trigger if exists on_ride_created on public.rides;
 create trigger on_ride_created after insert on public.rides
   for each row execute function public.handle_new_ride();
 
--- používateľ si sám nemôže nastaviť „overený Instagram“ ani Stravu
-create or replace function public.protect_profile() returns trigger
-language plpgsql set search_path = '' as $$
-begin
-  if coalesce(auth.role(), '') = 'authenticated' then
-    new.ig_verified      := old.ig_verified;
-    new.ig_user_id       := old.ig_user_id;
-    new.strava_connected := old.strava_connected;
-    if old.ig_verified then new.ig_username := old.ig_username; end if;
-  end if;
-  return new;
-end $$;
-drop trigger if exists on_profile_update on public.profiles;
-create trigger on_profile_update before update on public.profiles
-  for each row execute function public.protect_profile();
+-- hľadanie bikerov podľa mena, Instagramu alebo Facebooku (bez diakritiky)
+create or replace function public.search_profiles(q text)
+returns setof public.profiles
+language sql stable security invoker set search_path = public, extensions as $$
+  with t as (select unaccent(lower(regexp_replace(ltrim(trim(q), '@'), '([%_\\])', '\\\1', 'g'))) as s)
+  select p.* from public.profiles p, t
+  where auth.uid() is not null and p.id <> auth.uid() and char_length(t.s) >= 2
+    and (unaccent(lower(coalesce(p.display_name, ''))) like '%' || t.s || '%'
+      or coalesce(p.ig_username, '') like '%' || t.s || '%'
+      or unaccent(lower(coalesce(p.fb_name, ''))) like '%' || t.s || '%')
+  order by p.display_name nulls last
+  limit 15;
+$$;
 
 -- ---------------------------------------------------------------------
 -- 6. Pravidlá prístupu (Row Level Security)
 -- ---------------------------------------------------------------------
 alter table public.profiles          enable row level security;
-alter table public.ig_tokens         enable row level security;
-alter table public.strava_tokens     enable row level security;
 alter table public.friendships       enable row level security;
 alter table public.shortcuts         enable row level security;
 alter table public.rides             enable row level security;
@@ -313,12 +282,12 @@ grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.profiles, public.friendships, public.shortcuts, public.rides,
   public.ride_audience, public.ride_participants, public.messages, public.ride_photos to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
-revoke all on public.ig_tokens, public.strava_tokens from anon, authenticated;
 revoke execute on all functions in schema private from anon, public;
 grant execute on all functions in schema private to authenticated;
 revoke execute on function public.handle_new_user() from anon, authenticated, public;
 revoke execute on function public.handle_new_ride() from anon, authenticated, public;
-revoke execute on function public.protect_profile() from anon, authenticated, public;
+revoke execute on function public.search_profiles(text) from anon, public;
+grant execute on function public.search_profiles(text) to authenticated;
 
 -- ---------------------------------------------------------------------
 -- 7. Úložisko: profilovky (verejné) a fotky z jázd (súkromné)

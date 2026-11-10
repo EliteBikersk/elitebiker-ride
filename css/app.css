@@ -529,3 +529,6 @@ textarea.inp{resize:vertical;min-height:64px;font-family:inherit}
 
 @media (min-width:1024px){.view .top .brand{visibility:hidden}.nav .dot{position:static;margin-left:auto}}
 .navav{width:24px;height:24px;display:inline-flex;border-radius:999px;flex:0 0 auto}.navav .pic{width:24px!important;height:24px!important;border:0!important;margin:0;font-size:11px}.navav.on{box-shadow:0 0 0 2px var(--b)}
+
+/* kontakty (Instagram / Facebook) */
+.cfield{position:relative;margin-top:8px}.cfield svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--mu);pointer-events:none}.cfield .inp{padding-left:40px}

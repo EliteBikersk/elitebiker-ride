@@ -9,7 +9,7 @@
     auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
   });
   var me = null;
-  var PROFILE_COLS = "id,ig_username,ig_verified,display_name,avatar_url,age,city,bike_types,strava_connected";
+  var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,age,city,bike_types";
 
   function fail(error, msg) { if (error) { console.error(error); throw new Error(msg || error.message || "Chyba servera"); } }
   function rnd() { var a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, function (b) { return b.toString(16).padStart(2, "0"); }).join(""); }
@@ -22,6 +22,12 @@
       }
       return r.data;
     });
+  }
+  function linkError() {
+    var h = new URLSearchParams(location.hash.replace(/^#/, "")), e = h.get("error_description") || h.get("error");
+    if (!e) return null;
+    history.replaceState(null, "", location.pathname + location.search);
+    return /expired|invalid|denied/i.test(e) ? "Odkaz na prihlásenie vypršal alebo už bol použitý. Pošli si nový." : "Prihlásenie sa nepodarilo, skús to znova.";
   }
   function normRide(r) {
     return {
@@ -51,21 +57,14 @@
 
   var api = {
     mode: "live",
-    features: { instagram: !!C.IG_APP_ID, strava: !!C.STRAVA_CLIENT_ID },
 
     /* ---------- prihlásenie ---------- */
     init: function () {
-      return api.handleRedirect().then(function (msg) {
-        return sb.auth.getSession().then(function (r) { me = r.data.session ? r.data.session.user : null; return { user: me, message: msg }; });
-      });
+      var msg = linkError();
+      return sb.auth.getSession().then(function (r) { me = r.data.session ? r.data.session.user : null; return { user: me, message: msg }; });
     },
     onAuth: function (cb) { sb.auth.onAuthStateChange(function (_e, s) { me = s ? s.user : null; cb(me); }); },
     userId: function () { return me && me.id; },
-    loginInstagram: function (link) {
-      var st = (link ? "igl-" : "ig-") + rnd(); sessionStorage.setItem("eb_oauth", st);
-      location.href = "https://www.instagram.com/oauth/authorize?client_id=" + encodeURIComponent(C.IG_APP_ID) +
-        "&redirect_uri=" + encodeURIComponent(C.APP_URL) + "&response_type=code&scope=instagram_business_basic&state=" + st;
-    },
     loginEmail: function (email) {
       return sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: C.APP_URL + location.search } }).then(function (r) { fail(r.error, "E-mail sa nepodarilo odoslať. Skús to o chvíľu."); });
     },
@@ -73,27 +72,6 @@
       return sb.auth.verifyOtp({ email: email, token: code, type: "email" }).then(function (r) { fail(r.error, "Kód nesedí alebo vypršal. Pošli si nový."); });
     },
     logout: function () { return sb.auth.signOut(); },
-    handleRedirect: function () {
-      var p = new URLSearchParams(location.search), code = p.get("code"), state = p.get("state") || "", err = p.get("error_description") || p.get("error");
-      if (!code && !err) return Promise.resolve(null);
-      var expected = sessionStorage.getItem("eb_oauth"); sessionStorage.removeItem("eb_oauth");
-      var keep = new URLSearchParams(location.search); ["code", "state", "scope", "error", "error_reason", "error_description"].forEach(function (k) { keep.delete(k); });
-      history.replaceState(null, "", location.pathname + (keep.toString() ? "?" + keep : "") + location.hash.replace(/^#_$/, ""));
-      if (err) return Promise.resolve("Prihlásenie bolo zrušené.");
-      if (!expected || expected !== state) return Promise.resolve("Odkaz na prihlásenie vypršal, skús to znova.");
-      if (state.indexOf("ig-") === 0) {
-        return fn("instagram-auth", { code: code, redirect_uri: C.APP_URL }).then(function (d) {
-          return sb.auth.verifyOtp({ token_hash: d.token_hash, type: "magiclink" }).then(function (r) { fail(r.error, "Prihlásenie zlyhalo."); return "ig-ok"; });
-        }).catch(function (e) { return "Instagram: " + e.message; });
-      }
-      if (state.indexOf("igl-") === 0) {
-        return fn("instagram-auth", { code: code, redirect_uri: C.APP_URL, link: true }).then(function () { return "ig-linked"; }).catch(function (e) { return "Instagram: " + e.message; });
-      }
-      if (state.indexOf("st-") === 0) {
-        return fn("strava-auth", { code: code, scope: p.get("scope") }).then(function () { return "strava-ok"; }).catch(function (e) { return "Strava: " + e.message; });
-      }
-      return Promise.resolve(null);
-    },
 
     /* ---------- profily ---------- */
     me: function () { return api.profile(me.id); },
@@ -118,12 +96,15 @@
       });
     },
     searchProfiles: function (q) {
-      q = q.replace(/^@/, "").toLowerCase().replace(/[^a-z0-9._]/g, "");
+      q = String(q || "").trim().replace(/^@/, "");
       if (q.length < 2) return Promise.resolve([]);
-      return sb.from("profiles").select(PROFILE_COLS).ilike("ig_username", "%" + q + "%").neq("id", me.id).limit(15).then(function (r) { fail(r.error); return r.data; });
+      return sb.rpc("search_profiles", { q: q }).select(PROFILE_COLS).then(function (r) { fail(r.error, "Hľadanie zlyhalo."); return r.data; });
     },
-    byHandle: function (h) {
-      return sb.from("profiles").select(PROFILE_COLS).eq("ig_username", String(h).toLowerCase().replace(/^@/, "")).maybeSingle().then(function (r) { return r.data; });
+    byInvite: function (v) {
+      v = String(v || "").toLowerCase().replace(/^@/, "");
+      var q = sb.from("profiles").select(PROFILE_COLS);
+      q = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v) ? q.eq("id", v) : q.eq("ig_username", v);
+      return q.maybeSingle().then(function (r) { return r.data; });
     },
 
     /* ---------- priatelia a skratky ---------- */
@@ -239,15 +220,7 @@
       });
     },
 
-    /* ---------- Instagram a Strava ---------- */
-    igMedia: function () { return fn("ig-media"); },
-    stravaConnect: function () {
-      var st = "st-" + rnd(); sessionStorage.setItem("eb_oauth", st);
-      location.href = "https://www.strava.com/oauth/authorize?client_id=" + encodeURIComponent(C.STRAVA_CLIENT_ID) + "&redirect_uri=" + encodeURIComponent(C.APP_URL) +
-        "&response_type=code&approval_prompt=auto&scope=read,activity:read_all,profile:read_all&state=" + st;
-    },
-    stravaData: function () { return fn("strava-data"); },
-    stravaDisconnect: function () { return fn("strava-data", { action: "disconnect" }); },
+    /* ---------- účet ---------- */
     deleteAccount: function () { return fn("delete-account").then(function () { return sb.auth.signOut(); }); }
   };
   window.EBApi = api;

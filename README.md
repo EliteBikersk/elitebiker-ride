@@ -6,14 +6,13 @@ Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pri
 **Stránka:** https://elitebikersk.github.io/elitebiker-ride/
 
 ## Funkcie
-- Prihlásenie cez **Instagram** (meno a profilovka z Instagramu) alebo e-mailom, vek pri každom bikerovi.
+- Prihlásenie **e-mailom** (odkaz alebo kód, bez hesla). Profil: meno, fotka, vek, mesto a **Instagram / Facebook**, aby si kamoši vedeli napísať.
 - **Jazdy**: typ, deň a čas, **stretko na mape so špendlikom** (posúvaš mapu ako vo Wolte, vyhľadávanie adries, moja poloha),
   **trasa nakreslená ťukaním na mapu** s výpočtom km, tempo, poznámka. Navigácia na stretko cez Google Mapy / Waze.
 - **Zopakuj obvyklú jazdu** jedným ťukom.
 - **Komu pošleš jazdu?** – skratky ako na Snapchate (vlastné skupiny), jazdu vidia len vybraní.
   Organizátor rozhodne, či môžu pozývať aj účastníci.
 - **Chat len pre účastníkov**, po skončení jazdy sa zmaže. **Fotky z jazdy** ostávajú.
-- **Strava**: týždeň, posledné aktivity, km za rok, bicykle s najazdenými km (vidí len majiteľ).
 - **EliteBiker Klub**: body, odmeny (kontrola a servis zdarma…), zľavy pre členov, odkazy do e-shopu.
 - Responzívne (mobil, tablet, počítač), dá sa pridať na plochu telefónu.
 
@@ -21,7 +20,7 @@ Daj kamošom vedieť, kedy ideš na bike (cesta, gravel, horský, e-bike), a pri
 - Statická stránka (HTML/CSS/JS bez buildu) na GitHub Pages.
 - Server: **Supabase** – PostgreSQL s pravidlami prístupu (RLS), prihlásenie, realtime chat, úložisko, Edge Functions.
 - Mapy: Leaflet + OpenStreetMap, adresy cez Nominatim.
-- `supabase/schema.sql` – databáza, `supabase/functions/` – Instagram a Strava (tajné kľúče len na serveri).
+- `supabase/schema.sql` – databáza, `supabase/functions/delete-account` – zmazanie účtu.
 - Bez vyplneného `js/config.js` beží **skúšobný režim** s vymyslenými údajmi (`js/mock.js`).
 
 ## Zapojenie

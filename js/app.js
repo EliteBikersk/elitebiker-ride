@@ -24,7 +24,7 @@
     gauge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4.5 17a8.5 8.5 0 1 1 15 0"/><path d="m12 13 4-4"/></svg>',
     search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
     check: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
-    strava: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 2 3.5 15h4L10 10l2.5 5h4zM15.5 15l-2 4-2-4h-3l5 9 5-9z"/></svg>',
+    fb: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 22v-8.2h2.8l.4-3.3h-3.2V8.4c0-.9.3-1.6 1.6-1.6H17V3.9c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H7.5v3.3h2.8V22z"/></svg>',
     send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>',
     lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
     repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/></svg>',
@@ -41,7 +41,7 @@
   var REWARDS = [["☕", "Káva po jazde", "v predajni Dedovec", 50], ["🔍", "Kontrola bicykla zdarma", "brzdy, prehadzovačka, tlak, skrutky", 300], ["🏷️", "Zľava 10 € v e-shope", "kód na elitebiker.sk", 500], ["⚡", "Prednostný servis", "do 48 hodín aj v sezóne", 800], ["🔧", "Servis zdarma", "základný servis v EliteBikeri", 1500], ["🚵", "Celodenná požička e-biku", "Marin Alpine Trail E", 2000]];
 
   /* ---------------- stav ---------------- */
-  var S = { uid: null, me: null, P: {}, rides: [], fr: { friends: [], incoming: [], outgoing: [] }, sc: [], tab: "feed", filter: "all", openId: null, chat: {}, photos: {}, unsubChat: null, q: "", qres: null, editing: false, stats: null, strava: null, ig: null, tpl: [], seenInv: {} };
+  var S = { uid: null, me: null, P: {}, rides: [], fr: { friends: [], incoming: [], outgoing: [] }, sc: [], tab: "feed", filter: "all", openId: null, chat: {}, photos: {}, unsubChat: null, q: "", qres: null, editing: false, stats: null, tpl: [], seenInv: {} };
   var D;
 
   /* ---------------- pomocníci ---------------- */
@@ -55,8 +55,8 @@
   function dLabel(iso) { var o = dOff(iso), d = new Date(iso); if (o === 0) return "Dnes"; if (o === 1) return "Zajtra"; if (o === -1) return "Včera"; return DN[d.getDay()] + " " + d.getDate() + ". " + (d.getMonth() + 1) + "."; }
   function dShort(iso) { var o = dOff(iso); if (o === 0) return "Dnes"; if (o === 1) return "Zajtra"; if (o === -1) return "Včera"; return DN[new Date(iso).getDay()]; }
   function hue(s) { var h = 0; s = String(s || "x"); for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
-  function prof(id) { return S.P[id] || { id: id, ig_username: null, display_name: "Biker" }; }
-  function hname(id) { var p = prof(id); return p.ig_username || p.display_name || "biker"; }
+  function prof(id) { return S.P[id] || { id: id, ig_username: null, fb_name: null, display_name: "Biker" }; }
+  function hname(id) { var p = prof(id); return p.display_name || (p.ig_username ? "@" + p.ig_username : "") || "biker"; }
   function pic(id, cls) {
     var p = prof(id);
     if (p.avatar_url) return '<span class="pic ' + (cls || "") + '"><img class="av-img" src="' + esc(p.avatar_url) + '" alt="" loading="lazy"></span>';
@@ -66,7 +66,21 @@
   function age(id) { var a = prof(id).age; return a ? '<span class="age" title="vek">' + a + "</span>" : ""; }
   function hn(id, noAge) { return esc(hname(id)) + (noAge ? "" : age(id)); }
   function igUrl(id) { var u = prof(id).ig_username; return u ? "https://www.instagram.com/" + encodeURIComponent(u) + "/" : null; }
-  function igBtn(id) { var u = igUrl(id); return u ? '<a class="btn sm gh" href="' + u + '" target="_blank" rel="noopener" aria-label="Instagram">' + sz(IC.ig, 14) + "</a>" : ""; }
+  function igBtn(id) { var u = igUrl(id); return u ? '<a class="btn sm gh" href="' + esc(u) + '" target="_blank" rel="noopener" aria-label="Instagram" title="Napísať na Instagrame">' + sz(IC.ig, 14) + "</a>" : ""; }
+  var FB_LINK = /^(https?:\/\/)?([a-z0-9-]+\.)?(facebook\.com|fb\.com|m\.me)\//i;
+  function fbUrl(id) { var f = prof(id).fb_name; if (!f) return null; if (FB_LINK.test(f)) return /^https?:/i.test(f) ? f : "https://" + f; return "https://www.facebook.com/search/people/?q=" + encodeURIComponent(f); }
+  function fbLabel(id) { var f = prof(id).fb_name; return !f ? "" : FB_LINK.test(f) ? "Facebook profil" : f; }
+  function fbBtn(id) { var u = fbUrl(id); return u ? '<a class="btn sm gh" href="' + esc(u) + '" target="_blank" rel="noopener" aria-label="Facebook" title="Napísať na Facebooku">' + sz(IC.fb, 14) + "</a>" : ""; }
+  function contactBtns(id) { return igBtn(id) + fbBtn(id); }
+  function contactLine(id) { var p = prof(id), a = []; if (p.ig_username) a.push("@" + p.ig_username); if (p.fb_name) a.push(FB_LINK.test(p.fb_name) ? "Facebook" : "FB: " + p.fb_name); return a.join(" · "); }
+  function cleanIg(v) { return String(v || "").trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/[/?#].*$/, "").replace(/^@/, "").toLowerCase(); }
+  function cleanFb(v) { return String(v || "").trim().replace(/\s+/g, " "); }
+  function checkContacts(ig, fb) {
+    if (!ig && !fb) return "Zadaj Instagram alebo Facebook, aby ti kamoši vedeli napísať.";
+    if (ig && !/^[a-z0-9._]{1,30}$/.test(ig)) return "Instagram meno môže mať len písmená, čísla, bodku a podčiarkovník.";
+    if (fb && (fb.length > 100 || (/^https?:|www\.|\.[a-z]{2,}\//i.test(fb) && !FB_LINK.test(fb)))) return "Pri Facebooku zadaj meno alebo odkaz na profil (facebook.com/…).";
+    return null;
+  }
   function find(id) { for (var i = 0; i < S.rides.length; i++) if (S.rides[i].id === id) return S.rides[i]; return null; }
   function going(r) { return r.participants.indexOf(S.uid) > -1; }
   function ended(r) { return new Date(r.ends_at) < new Date(); }
@@ -103,8 +117,6 @@
     o.innerHTML = '<img class="login-logo" src="' + esc(C.LOGO_URL) + '" alt="EliteBiker" onerror="this.outerHTML=\'<div class=&quot;big&quot;>' + IC.bike.replace(/"/g, "&quot;") + '</div>\'">' +
       '<h1>Nejazdi sám.<br><span>Jazdi s partiou.</span></h1><p>Daj kamošom vedieť, kedy ideš na bike, a pridaj sa k nim, keď idú oni.</p>' +
       '<div style="margin-top:auto;padding-top:24px">' +
-      (api.features.instagram ? '<button class="btn igl" data-act="login-ig">' + sz(IC.ig, 20) + "Pokračovať cez Instagram</button>" +
-        '<p class="legal" style="margin-top:8px">Funguje pre účty tvorcu a firemné účty. Máš súkromný Instagram? Prihlás sa e-mailom a @meno zadáš sám.</p>' : "") +
       '<span class="fl" style="margin-top:18px">Prihlásenie e-mailom</span><form class="inp-row" id="emailForm"><input class="inp" id="email" type="email" required placeholder="tvoj@email.sk" autocomplete="email"><button class="btn" type="submit">Poslať odkaz</button></form>' +
       '<p class="legal">Pošleme ti odkaz na prihlásenie, heslo netreba. Prevádzkuje EliteBiker s.r.o. · <a class="link-plain" href="privacy.html" target="_blank">Ochrana súkromia</a></p></div>';
     $("emailForm").onsubmit = function (e) {
@@ -125,28 +137,35 @@
       }).catch(function (x) { b.disabled = false; b.textContent = "Poslať odkaz"; err(x); });
     };
   }
-  function needsOnboarding() { return !S.me || !S.me.age || !S.me.ig_username; }
+  function needsOnboarding() { return !S.me || !S.me.age || !S.me.display_name || (!S.me.ig_username && !S.me.fb_name); }
+  function contactFields(pre, u) {
+    return '<span class="fl">Kde ti kamoši napíšu? <small style="font-weight:500;color:var(--mu)">stačí jedno</small></span>' +
+      '<div class="cfield">' + sz(IC.ig, 18) + '<input class="inp" id="' + pre + '-ig" maxlength="80" autocapitalize="off" autocomplete="off" placeholder="Instagram – napr. martin.rides" value="' + esc(u.ig_username || "") + '"></div>' +
+      '<div class="cfield">' + sz(IC.fb, 18) + '<input class="inp" id="' + pre + '-fb" maxlength="100" autocomplete="off" placeholder="Facebook – meno alebo odkaz" value="' + esc(u.fb_name || "") + '"></div>';
+  }
   function renderOnboarding() {
     var u = S.me || {}, o = $("onb"); o.classList.remove("hide");
     var types = u.bike_types && u.bike_types.length ? u.bike_types : [];
-    o.innerHTML = '<h1 style="margin-top:-24px;font-size:26px">Ahoj' + (u.ig_username ? ", <span>" + esc(u.ig_username) + "</span>" : "") + ' 👋</h1><p>Doplň pár údajov, aby ťa kamoši spoznali.</p>' +
+    o.innerHTML = '<h1 style="margin-top:-24px;font-size:26px">Ahoj' + (u.display_name ? ", <span>" + esc(u.display_name.split(" ")[0]) + "</span>" : "") + ' 👋</h1><p>Doplň pár údajov, aby ťa kamoši spoznali.</p>' +
       '<div class="igcard"><label style="cursor:pointer;display:inline-block" title="Zmeniť fotku">' + pic(S.uid, "lg") + '<input type="file" accept="image/*" data-up="avatar" hidden></label>' +
-      '<div class="n">' + esc(u.ig_username || "tvoje @meno") + "</div>" + (u.ig_verified ? '<span class="src">' + IC.ig + "meno a fotka z Instagramu</span>" : '<label class="upl">📷 Nahrať profilovú fotku<input type="file" accept="image/*" data-up="avatar" hidden></label>') + "</div>" +
+      '<div class="n">' + esc(u.display_name || "tvoje meno") + '</div><label class="upl">📷 Nahrať profilovú fotku<input type="file" accept="image/*" data-up="avatar" hidden></label></div>' +
       '<form id="onbForm">' +
-      '<span class="fl">Instagram meno</span><input class="inp" id="o-ig" required pattern="[A-Za-z0-9._@]{1,31}" placeholder="napr. martin.rides" value="' + esc(u.ig_username || "") + '"' + (u.ig_verified ? " disabled" : "") + ">" +
-      '<span class="fl">Meno (nepovinné)</span><input class="inp" id="o-name" maxlength="60" value="' + esc(u.display_name || "") + '">' +
+      '<span class="fl">Meno a priezvisko</span><input class="inp" id="o-name" required maxlength="60" autocomplete="name" placeholder="napr. Martin Novák" value="' + esc(u.display_name || "") + '">' +
       '<div class="two" style="margin-top:4px"><div><span class="fl">Vek</span><input class="inp" id="o-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '"></div><div><span class="fl">Mesto</span><input class="inp" id="o-city" maxlength="60" value="' + esc(u.city || "") + '"></div></div>' +
       '<p class="small-note" style="margin-top:6px">Vek uvidia kamoši pri jazdách, aby vedeli, s kým idú.</p>' +
+      contactFields("o", u) +
+      '<p class="small-note" style="margin-top:6px">Uvidia to len prihlásení bikeri – aby ti vedeli napísať napr. pred jazdou.</p>' +
       '<span class="fl">Na čom jazdíš?</span><div class="opts" id="o-types">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-act="toggle-on" data-v="' + k + '" class="' + (types.indexOf(k) > -1 ? "on" : "") + '">' + IC[TYPES[k][1]] + TYPES[k][0] + "</button>"; }).join("") + "</div>" +
       '<div style="padding-top:22px"><button class="btn full" type="submit">Hotovo, ideme jazdiť →</button></div></form>';
     $("onbForm").onsubmit = function (e) {
       e.preventDefault();
-      var patch = { display_name: $("o-name").value.trim() || null, age: +$("o-age").value, city: $("o-city").value.trim() || null,
+      var patch = { display_name: $("o-name").value.trim(), age: +$("o-age").value, city: $("o-city").value.trim() || null,
+        ig_username: cleanIg($("o-ig").value) || null, fb_name: cleanFb($("o-fb").value) || null,
         bike_types: [].slice.call(document.querySelectorAll("#o-types .on")).map(function (b) { return b.dataset.v; }) };
-      if (!u.ig_verified) patch.ig_username = $("o-ig").value.trim().replace(/^@/, "").toLowerCase();
-      if (patch.ig_username !== undefined && !/^[a-z0-9._]{1,30}$/.test(patch.ig_username)) { toast("Instagram meno môže mať len písmená, čísla, bodku a podčiarkovník."); return; }
+      if (!patch.display_name) { toast("Zadaj svoje meno."); return; }
       if (!(patch.age >= 14 && patch.age <= 99)) { toast("Zadaj vek (14 – 99)."); return; }
-      api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; $("onb").classList.add("hide"); render(); afterStart(); toast("Vitaj v EliteBiker Ride, <b>" + esc(p.ig_username) + "</b>!"); }).catch(err);
+      var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
+      api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; $("onb").classList.add("hide"); render(); afterStart(); toast("Vitaj v EliteBiker Ride, <b>" + esc(p.display_name.split(" ")[0]) + "</b>!"); }).catch(err);
     };
   }
 
@@ -188,27 +207,27 @@
   }
   function vFriends() {
     var html = topbar('<h1 class="t">Moja <span>partia</span></h1>') + '<div class="pad">' +
-      '<div class="search" style="margin-top:0">' + IC.search + '<input id="q" placeholder="Hľadaj podľa @mena z Instagramu" value="' + esc(S.q) + '" autocomplete="off" autocapitalize="off"></div><div id="qres">' + qResults() + "</div>" +
+      '<div class="search" style="margin-top:0">' + IC.search + '<input id="q" placeholder="Hľadaj podľa mena, Instagramu alebo Facebooku" value="' + esc(S.q) + '" autocomplete="off" autocapitalize="off"></div><div id="qres">' + qResults() + "</div>" +
       '<div class="invite"><div style="flex:1"><b>Pozvi kamoša</b><small>Pošli mu odkaz – po prihlásení budete hneď priatelia.</small></div><button class="btn sm" data-act="invite-link">Pozvať</button></div>';
     if (S.fr.incoming.length) html += '<div class="sec-h"><b>Žiadosti</b><small>' + S.fr.incoming.length + '</small></div><div class="card" style="padding:4px 16px">' + S.fr.incoming.map(function (id) {
-      return '<div class="row">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + esc(prof(id).display_name || "") + (prof(id).city ? " · " + esc(prof(id).city) : "") + '</small></div><button class="btn sm gh" data-act="decline" data-u="' + id + '">✕</button><button class="btn sm" data-act="accept" data-u="' + id + '">Prijať</button></div>'; }).join("") + "</div>";
+      return '<div class="row">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + esc([contactLine(id), prof(id).city].filter(Boolean).join(" · ")) + '</small></div><button class="btn sm gh" data-act="decline" data-u="' + id + '">✕</button><button class="btn sm" data-act="accept" data-u="' + id + '">Prijať</button></div>'; }).join("") + "</div>";
     html += '<div class="sec-h"><b>Priatelia</b><small>' + S.fr.friends.length + "</small></div>";
-    if (!S.fr.friends.length) html += '<div class="empty-state"><i>🤝</i><b>Zatiaľ nikoho nemáš</b>Vyhľadaj kamošov hore podľa @mena, alebo im pošli pozvánku.</div>';
+    if (!S.fr.friends.length) html += '<div class="empty-state"><i>🤝</i><b>Zatiaľ nikoho nemáš</b>Vyhľadaj kamošov hore podľa mena, alebo im pošli pozvánku.</div>';
     else html += '<div class="card" style="padding:4px 16px">' + S.fr.friends.slice().sort(function (a, b) { return hname(a) < hname(b) ? -1 : 1; }).map(function (id) {
       var next = S.rides.filter(function (r) { return r.host === id && !ended(r); })[0], p = prof(id);
-      return '<div class="row">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + (next ? '<span class="live">jazdí ' + dShort(next.starts_at).toLowerCase() + " " + hm(next.starts_at) + "</span>" : esc([p.display_name, p.city].filter(Boolean).join(" · "))) + "</small></div>" +
-        (next ? '<button class="btn sm gh" data-act="open" data-id="' + next.id + '">Jazda</button>' : "") + igBtn(id) + "</div>"; }).join("") + "</div>";
+      return '<div class="row">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + (next ? '<span class="live">jazdí ' + dShort(next.starts_at).toLowerCase() + " " + hm(next.starts_at) + "</span>" : esc([contactLine(id), p.city].filter(Boolean).join(" · "))) + "</small></div>" +
+        (next ? '<button class="btn sm gh" data-act="open" data-id="' + next.id + '">Jazda</button>' : "") + contactBtns(id) + "</div>"; }).join("") + "</div>";
     if (S.fr.outgoing.length) html += '<div class="sec-h"><b>Čakajú na potvrdenie</b><small>' + S.fr.outgoing.length + '</small></div><div class="card" style="padding:4px 16px">' + S.fr.outgoing.map(function (id) {
       return '<div class="row" style="opacity:.7">' + pic(id) + '<div class="grow"><b>' + hn(id) + '</b><small>žiadosť odoslaná</small></div><button class="btn sm gh" data-act="unfriend" data-u="' + id + '">Zrušiť</button></div>'; }).join("") + "</div>";
     return html + "</div>";
   }
   function qResults() {
     if (!S.qres) return "";
-    if (!S.qres.length) return '<p class="info" style="text-align:left">Nikoho s takým @menom sme nenašli. Pošli mu pozvánku nižšie.</p>';
+    if (!S.qres.length) return '<p class="info" style="text-align:left">Nikoho takého sme nenašli. Pošli mu pozvánku nižšie.</p>';
     return '<div class="card" style="padding:4px 16px;margin-top:10px">' + S.qres.map(function (p) {
       S.P[p.id] = S.P[p.id] || p;
       var st = isFriend(p.id) ? '<span class="chip lb">Priateľ</span>' : S.fr.outgoing.indexOf(p.id) > -1 ? '<span class="chip">Odoslané</span>' : S.fr.incoming.indexOf(p.id) > -1 ? '<button class="btn sm" data-act="accept" data-u="' + p.id + '">Prijať</button>' : '<button class="btn sm" data-act="addfriend" data-u="' + p.id + '">Pridať</button>';
-      return '<div class="row">' + pic(p.id) + '<div class="grow"><b>' + hn(p.id) + "</b><small>" + esc([p.display_name, p.city].filter(Boolean).join(" · ")) + "</small></div>" + st + "</div>"; }).join("") + "</div>";
+      return '<div class="row">' + pic(p.id) + '<div class="grow"><b>' + hn(p.id) + "</b><small>" + esc([contactLine(p.id), p.city].filter(Boolean).join(" · ")) + "</small></div>" + st + "</div>"; }).join("") + "</div>";
   }
   function vClub() {
     var st = S.stats, pts = st ? st.joined * 20 + st.hosted * 50 + st.photos * 10 : null;
@@ -224,51 +243,27 @@
         return '<div class="rw"><i>' + x[0] + '</i><div class="grow"><b>' + x[1] + "</b><small>" + x[2] + '</small></div><button class="cost' + (ok ? "" : " no") + '" data-act="reward" data-i="' + REWARDS.indexOf(x) + '">' + x[3] + " b</button></div>"; }).join("") + "</div>" +
       '<div class="sec-h"><b>Zľavy pre členov</b><small>termíny čoskoro</small></div><div class="disc">' + DISC.map(function (d) {
         return '<a href="' + esc(u + d[3]) + '" target="_blank" rel="noopener"><i>' + d[0] + "</i><b>" + d[1] + "</b><small>" + d[2] + '</small><span class="soon">Zľava čoskoro</span><span class="go">Pozrieť v e-shope →</span></a>'; }).join("") + "</div>" +
-      '<div class="sec-h"><b>Servis</b></div><div class="card"><div class="kc"><span class="ic">🔧</span><div class="grow"><b>Bicykel do formy</b><small>Kontrola alebo servis v EliteBikeri. Ak máš pripojenú Stravu, v profile uvidíš, koľko km máš na bicykli.</small><a class="btn sm" style="text-decoration:none" href="' + esc(u) + 'servis-bicyklov-2/" target="_blank" rel="noopener">Objednať servis →</a></div></div></div>' +
+      '<div class="sec-h"><b>Servis</b></div><div class="card"><div class="kc"><span class="ic">🔧</span><div class="grow"><b>Bicykel do formy</b><small>Kontrola alebo servis v EliteBikeri.</small><a class="btn sm" style="text-decoration:none" href="' + esc(u) + 'servis-bicyklov-2/" target="_blank" rel="noopener">Objednať servis →</a></div></div></div>' +
       '<div class="sos"><span style="font-size:24px">🛟</span><div><b>Defekt alebo porucha na trase?</b><small>Zavolaj nám: +421 919 125 174</small></div><a class="btn sm" href="tel:+421919125174">Volať</a></div></div>';
   }
   function vProfile() {
-    var u = S.me, f = api.features;
+    var u = S.me;
     var html = topbar('<h1 class="t">Môj <span>profil</span></h1>') + '<div class="pad"><div class="prof"><label style="cursor:pointer;display:inline-block" title="Zmeniť fotku">' + pic(S.uid, "lg") + '<input type="file" accept="image/*" data-up="avatar" hidden></label>' +
-      "<h2>" + esc(u.ig_username) + (u.ig_verified ? ' <span class="verified">' + IC.ig + "overené</span>" : "") + '</h2><p class="sub">' + esc([u.display_name, u.age ? u.age + " r." : "", u.city].filter(Boolean).join(" · ")) + "</p>" +
-      '<div style="display:flex;gap:8px;justify-content:center;margin-top:12px"><button class="btn sm gh" data-act="edit">Upraviť profil</button>' + (igUrl(S.uid) ? '<a class="btn sm gh" href="' + igUrl(S.uid) + '" target="_blank" rel="noopener">' + sz(IC.ig, 14) + "Instagram</a>" : "") + "</div></div>";
-    if (S.editing) html += '<form class="card" id="editForm" style="margin-top:14px"><span class="fl" style="margin-top:0">Instagram meno</span><input class="inp" id="e-ig" value="' + esc(u.ig_username || "") + '"' + (u.ig_verified ? " disabled" : "") + ">" +
-      '<span class="fl">Meno</span><input class="inp" id="e-name" maxlength="60" value="' + esc(u.display_name || "") + '"><div class="two"><div><span class="fl">Vek</span><input class="inp" id="e-age" type="number" min="14" max="99" value="' + esc(u.age || "") + '"></div><div><span class="fl">Mesto</span><input class="inp" id="e-city" maxlength="60" value="' + esc(u.city || "") + '"></div></div>' +
+      "<h2>" + esc(u.display_name || "") + '</h2><p class="sub">' + esc([u.age ? u.age + " r." : "", u.city].filter(Boolean).join(" · ")) + "</p>" +
+      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px"><button class="btn sm gh" data-act="edit">Upraviť profil</button>' +
+      (igUrl(S.uid) ? '<a class="btn sm gh" href="' + esc(igUrl(S.uid)) + '" target="_blank" rel="noopener">' + sz(IC.ig, 14) + "@" + esc(u.ig_username) + "</a>" : "") +
+      (fbUrl(S.uid) ? '<a class="btn sm gh" href="' + esc(fbUrl(S.uid)) + '" target="_blank" rel="noopener">' + sz(IC.fb, 14) + esc(fbLabel(S.uid)) + "</a>" : "") + "</div></div>";
+    if (S.editing) html += '<form class="card" id="editForm" style="margin-top:14px"><span class="fl" style="margin-top:0">Meno a priezvisko</span><input class="inp" id="e-name" required maxlength="60" value="' + esc(u.display_name || "") + '">' +
+      '<div class="two"><div><span class="fl">Vek</span><input class="inp" id="e-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '"></div><div><span class="fl">Mesto</span><input class="inp" id="e-city" maxlength="60" value="' + esc(u.city || "") + '"></div></div>' +
+      contactFields("e", u) +
       '<span class="fl">Na čom jazdíš?</span><div class="opts" id="e-types">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-act="toggle-on" data-v="' + k + '" class="' + ((u.bike_types || []).indexOf(k) > -1 ? "on" : "") + '">' + IC[TYPES[k][1]] + TYPES[k][0] + "</button>"; }).join("") + "</div>" +
       '<div style="display:flex;gap:8px;margin-top:16px"><button class="btn gh" type="button" data-act="edit">Zrušiť</button><button class="btn" style="flex:1" type="submit">Uložiť</button></div></form>';
-    html += '<div class="sec-h"><b>Prepojenia</b></div><div class="card" style="padding:4px 16px">' +
-      '<div class="conn"><span class="lg ig-bg">' + IC.ig + '</span><div class="grow"><b>Instagram ' + (u.ig_verified ? '<span class="chip" style="padding:1px 8px;font-size:10.5px;color:var(--ok)">pripojené</span>' : "") + "</b><small>" + (u.ig_verified ? "Meno a profilovka sa berú z Instagramu." : "Pripoj účet tvorcu alebo firemný – overíme tvoje @meno a načítame fotku.") + "</small></div>" + (!u.ig_verified && f.instagram ? '<button class="btn sm igb" data-act="ig-link">Pripojiť</button>' : "") + "</div>" +
-      '<div class="conn"><span class="lg strava-bg">' + IC.strava + '</span><div class="grow"><b>Strava ' + (u.strava_connected ? '<span class="chip" style="padding:1px 8px;font-size:10.5px;color:var(--ok)">pripojené</span>' : "") + "</b><small>" + (u.strava_connected ? "Tvoje km a aktivity vidíš len ty." : "Pripoj a uvidíš svoje km, aktivity a kedy treba servis.") + "</small></div>" +
-      (u.strava_connected ? '<button class="btn sm gh" data-act="strava-off">Odpojiť</button>' : f.strava ? '<button class="btn sm str" data-act="strava-on">Pripojiť</button>' : "") + "</div></div>";
-    if (u.strava_connected) html += '<div id="stravaBox">' + stravaBox() + "</div>";
-    if (u.ig_verified) html += '<div id="igBox">' + igBox() + "</div>";
     html += '<div class="sec-h"><b>Moje skratky</b><small>komu posielam jazdy</small></div>' + (S.sc.length ? '<div class="card" style="padding:4px 16px">' + S.sc.map(function (s) {
       return '<div class="row"><span style="font-size:22px;width:38px;text-align:center">' + esc(s.emoji) + '</span><div class="grow"><b>' + esc(s.name) + "</b><small>" + s.members.map(function (m) { return esc(hname(m)); }).join(", ") + '</small></div><button class="btn sm gh" data-act="del-sc" data-id="' + s.id + '">Zmazať</button></div>'; }).join("") + "</div>" : '<p class="info" style="text-align:left">Skratku si vytvoríš pri posielaní jazdy – vyber kamošov a daj „Nová skratka“.</p>') +
       '<div class="shop"><span style="font-size:24px">🛒</span><div class="grow"><b>E-shop elitebiker.sk</b><small>Bicykle, diely, výbava a servis</small></div><a class="btn sm" href="' + esc(C.ESHOP_URL) + '" target="_blank" rel="noopener">Otvoriť →</a></div>' +
       '<div class="card" style="padding:4px 16px;margin-top:14px"><div class="kv"><span>Ochrana súkromia</span><b><a class="link-plain" href="privacy.html" target="_blank">Prečítať</a></b></div><div class="kv"><span>Účet</span><b><button class="link-plain" data-act="logout">Odhlásiť sa</button></b></div><div class="kv"><span>Zmazať účet a všetky údaje</span><b><button class="link-plain danger" data-act="delete-acc">Zmazať</button></b></div></div>' +
       (api.mode === "demo" ? '<p class="small-note">Skúšobný režim – údaje sú len v tomto prehliadači.</p>' : "") + "</div>";
     return html;
-  }
-  function stravaBox() {
-    var d = S.strava;
-    if (!d) return '<div class="own"><div class="loading" style="padding:10px 0">Načítavam Stravu…</div></div>';
-    if (d.error) return '<div class="own"><div class="h"><span>Strava</span></div><p class="err">' + esc(d.error) + "</p></div>";
-    if (!d.connected) return "";
-    var bikes = (d.bikes || []).map(function (b) { return '<div class="act"><span class="ic">' + sz(IC.bike, 18) + '</span><div class="grow"><b>' + esc(b.name) + "</b><small>" + b.km.toLocaleString("sk") + " km celkovo" + (b.primary ? " · hlavný bicykel" : "") + "</small></div></div>"; }).join("");
-    return '<div class="own"><div class="h"><span>' + sz(IC.strava, 13) + ' Posledných 7 dní</span><span style="font-weight:600;color:var(--mu)">vidíš len ty</span></div>' +
-      '<div class="g"><div><b>' + d.week.count + "</b><small>jázd</small></div><div><b>" + d.week.km + "</b><small>km</small></div><div><b>" + d.week.elev.toLocaleString("sk") + "</b><small>m stúpania</small></div></div>" +
-      '<div style="margin-top:8px">' + (d.activities || []).slice(0, 4).map(function (a) { var h = Math.floor(a.moving_s / 3600), m = Math.round(a.moving_s % 3600 / 60);
-        return '<div class="act"><span class="ic">' + IC.strava + '</span><div class="grow"><b>' + esc(a.name) + "</b><small>" + dShort(a.start) + " · " + String(a.km).replace(".", ",") + " km · " + h + ":" + String(m).padStart(2, "0") + " · " + a.elev + " m</small></div></div>"; }).join("") + "</div>" +
-      (d.ytd ? '<div class="g" style="margin-top:6px;border-top:1px solid #fde0cf;padding-top:10px"><div><b>' + d.ytd.km.toLocaleString("sk") + "</b><small>km tento rok</small></div><div><b>" + d.ytd.count + "</b><small>jázd tento rok</small></div><div><b>" + d.ytd.hours + "</b><small>hodín</small></div></div>" : "") +
-      (bikes ? '<div style="margin-top:8px;border-top:1px solid #fde0cf;padding-top:4px">' + bikes + "</div>" : "") +
-      '<p class="small-note">Údaje zo Stravy · <a class="link-plain" href="https://www.strava.com" target="_blank" rel="noopener">Powered by Strava</a></p></div>';
-  }
-  function igBox() {
-    var d = S.ig;
-    if (!d) return "";
-    if (!d.media || !d.media.length) return "";
-    return '<div class="sec-h"><b>Môj Instagram</b><small>posledné príspevky</small></div><div class="phg">' + d.media.slice(0, 6).map(function (m) {
-      return '<a class="ph" href="' + esc(m.link) + '" target="_blank" rel="noopener"><img class="real" src="' + esc(m.image) + '" alt="" loading="lazy"></a>'; }).join("") + "</div>";
   }
 
   function renderNav() {
@@ -297,15 +292,15 @@
     var ef = $("editForm");
     if (ef) ef.onsubmit = function (e) {
       e.preventDefault();
-      var patch = { display_name: $("e-name").value.trim() || null, age: +$("e-age").value || null, city: $("e-city").value.trim() || null, bike_types: [].slice.call(document.querySelectorAll("#e-types .on")).map(function (b) { return b.dataset.v; }) };
-      if (!S.me.ig_verified) patch.ig_username = $("e-ig").value.trim().replace(/^@/, "").toLowerCase();
-      if (patch.ig_username !== undefined && !/^[a-z0-9._]{1,30}$/.test(patch.ig_username)) { toast("Neplatné Instagram meno."); return; }
-      if (patch.age && !(patch.age >= 14 && patch.age <= 99)) { toast("Vek musí byť 14 – 99."); return; }
+      var patch = { display_name: $("e-name").value.trim(), age: +$("e-age").value, city: $("e-city").value.trim() || null,
+        ig_username: cleanIg($("e-ig").value) || null, fb_name: cleanFb($("e-fb").value) || null,
+        bike_types: [].slice.call(document.querySelectorAll("#e-types .on")).map(function (b) { return b.dataset.v; }) };
+      if (!patch.display_name) { toast("Zadaj svoje meno."); return; }
+      if (!(patch.age >= 14 && patch.age <= 99)) { toast("Vek musí byť 14 – 99."); return; }
+      var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
       api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; S.editing = false; render(true); toast("Profil uložený."); }).catch(err);
     };
     if (S.tab === "club" && !S.stats) api.stats().then(function (s) { S.stats = s; if (S.tab === "club") render(true); }).catch(function () { S.stats = { joined: 0, hosted: 0, photos: 0 }; });
-    if (S.tab === "profile" && S.me.strava_connected && !S.strava) api.stravaData().then(function (d) { S.strava = d; var b = $("stravaBox"); if (b) b.innerHTML = stravaBox(); }).catch(function (e) { S.strava = { error: e.message }; var b = $("stravaBox"); if (b) b.innerHTML = stravaBox(); });
-    if (S.tab === "profile" && S.me.ig_verified && !S.ig) api.igMedia().then(function (d) { S.ig = d; var b = $("igBox"); if (b) b.innerHTML = igBox(); }).catch(function () { S.ig = { media: [] }; });
   }
 
   /* ---------------- detail jazdy ---------------- */
@@ -350,7 +345,7 @@
     var canInv = !ended(r) && (r.host === S.uid || (r.allow_invites && going(r)));
     $("dCount") && ($("dCount").textContent = r.participants.length);
     $("dPeople").innerHTML = '<div class="sec-h"><b>Kto ide</b><small>' + r.participants.length + (pend.length && r.host === S.uid ? " · " + pend.length + " pozvaní" : "") + '</small></div><div class="card" style="padding:4px 16px">' +
-      r.participants.map(function (id) { return '<div class="row">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(prof(id).display_name || "") + "</small></div>" + (id !== S.uid ? igBtn(id) : "") + "</div>"; }).join("") +
+      r.participants.map(function (id) { return '<div class="row">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(contactLine(id)) + "</small></div>" + (id !== S.uid ? contactBtns(id) : "") + "</div>"; }).join("") +
       (r.host === S.uid ? pend.map(function (id) { return '<div class="row" style="opacity:.6">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>pozvaný · zatiaľ sa nepridal</small></div></div>"; }).join("") : "") +
       (canInv ? '<div class="row" style="cursor:pointer" data-act="invmodal" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.plus, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať kamošov</b><small>z tvojej partie</small></div></div>' : "") + "</div>";
     renderChat();
@@ -516,8 +511,6 @@
     if (a !== "open") e.stopPropagation();
     var id = el.dataset.id, u = el.dataset.u;
     switch (a) {
-      case "login-ig": api.loginInstagram(false); break;
-      case "ig-link": api.loginInstagram(true); break;
       case "toggle-on": el.classList.toggle("on"); break;
       case "tab": S.tab = el.dataset.t; S.editing = false; closeModal(); if ($("sheet").classList.contains("open")) closeSheet(); render(); $("view").scrollTop = 0; break;
       case "notif": openModal(vNotif()); break;
@@ -534,7 +527,7 @@
       })(); break;
       case "cancel": if (el.dataset.sure) { api.cancelRide(id).then(function () { toast("Jazda zrušená."); closeSheet(); return refresh(); }).catch(err); } else { el.dataset.sure = 1; el.textContent = "Naozaj zrušiť?"; el.classList.add("danger"); } break;
       case "share-ride": (function () { var r = find(id); share((hname(r.host)) + " ide " + TYPES[r.type][0].toLowerCase() + " – " + dLabel(r.starts_at).toLowerCase() + " o " + hm(r.starts_at) + ": " + r.title + ".", shareUrl("#jazda-" + r.id)); })(); break;
-      case "invite-link": share("Poď so mnou jazdiť na bike 🚴 Pridaj sa ku mne v EliteBiker Ride:", shareUrl("?pridaj=" + encodeURIComponent(S.me.ig_username || ""))); break;
+      case "invite-link": share("Poď so mnou jazdiť na bike 🚴 Pridaj sa ku mne v EliteBiker Ride:", shareUrl("?pridaj=" + encodeURIComponent(S.uid))); break;
       case "create": openCreate(); break;
       case "repeat": openCreate(+el.dataset.i); break;
       case "tpl": saveD(); var ti = +el.dataset.i; if (D.tpl === ti) resetD(); else applyTpl(ti); drawCreate(true); break;
@@ -560,8 +553,6 @@
       case "decline": case "unfriend": api.removeFriend(u).then(loadAll).then(function () { render(true); if ($("modal").classList.contains("open")) openModal(vNotif()); }).catch(err); break;
       case "edit": S.editing = !S.editing; render(true); break;
       case "del-sc": api.deleteShortcut(id).then(function () { S.sc = S.sc.filter(function (s) { return s.id !== id; }); render(true); }).catch(err); break;
-      case "strava-on": api.stravaConnect(); break;
-      case "strava-off": api.stravaDisconnect().then(function () { S.me.strava_connected = false; S.strava = null; render(true); toast("Strava odpojená."); }).catch(err); break;
       case "reward": (function () { var x = REWARDS[+el.dataset.i], st = S.stats, pts = st ? st.joined * 20 + st.hosted * 50 + st.photos * 10 : 0;
         toast(pts >= x[3] ? "Ukáž túto obrazovku v predajni EliteBiker – <b>" + x[1] + "</b> ti radi dáme." : "Na „" + x[1] + "“ ti chýba ešte " + (x[3] - pts) + " bodov."); })(); break;
       case "logout": api.logout().then(function () { location.href = location.pathname; }); break;
@@ -589,10 +580,10 @@
     var add = sessionStorage.getItem("eb_pridaj");
     if (add) {
       sessionStorage.removeItem("eb_pridaj");
-      api.byHandle(add).then(function (p) {
+      api.byInvite(add).then(function (p) {
         if (!p || p.id === S.uid || isFriend(p.id)) return;
         S.P[p.id] = p;
-        return api.requestFriend(p.id).then(function () { toast("Poslali sme žiadosť o priateľstvo <b>" + esc(p.ig_username) + "</b>."); return loadAll(); }).then(function () { render(true); });
+        return api.requestFriend(p.id).then(function () { toast("Poslali sme žiadosť o priateľstvo <b>" + esc(p.display_name || p.ig_username || "") + "</b>."); return loadAll(); }).then(function () { render(true); });
       }).catch(function () {});
     }
     var h = location.hash; if (h.indexOf("#jazda-") === 0) setTimeout(function () { openRide(h.slice(7)); }, 200);
@@ -608,14 +599,13 @@
     sm.observe($("sheet"), { attributes: true, attributeFilter: ["class"] }); sm.observe($("modal"), { attributes: true, attributeFilter: ["class"] });
     api.init().then(function (r) {
       var msg = r.message;
-      if (msg && msg !== "ig-ok") toast(msg === "strava-ok" ? "Strava pripojená ✓" : msg === "ig-linked" ? "Instagram pripojený ✓" : esc(msg));
+      if (msg) toast(esc(msg));
       if (!r.user) { renderLogin(); return; }
       S.uid = r.user.id;
       $("onb").innerHTML = '<div class="load"><div class="spin"></div>Načítavam…</div>';
       return loadAll().then(function () {
         if (needsOnboarding()) { renderOnboarding(); return; }
         $("onb").classList.add("hide"); render(); afterStart();
-        if (msg === "strava-ok") { S.tab = "profile"; render(); }
       });
     }).catch(function (e) { err(e); renderLogin(); });
     api.onAuth(function (user) { if (!user && S.uid) location.href = location.pathname; });

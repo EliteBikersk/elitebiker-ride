@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   if (window.EBApi) return;
-  var KEY = "ebride-demo-v2";
+  var KEY = "ebride-demo-v3";
   var SKIN = ["#f2c9a8", "#e3ad86", "#b97c58"];
   function face(o) {
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="' + o.bg + '"/>' +
@@ -14,21 +14,21 @@
       '<rect x="14.2" y="18.6" width="11.6" height="3.2" rx="1.6" fill="#11131a" opacity=".85"/><path d="M17.5 24.5q2.5 1.6 5 0" stroke="#7a4a32" stroke-width=".9" fill="none" stroke-linecap="round"/></svg>';
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
-  function P(id, ig, name, age, city, bikes, look, verified) {
-    return { id: id, ig_username: ig, display_name: name, age: age, city: city, bike_types: bikes, avatar_url: face(look), ig_verified: !!verified, strava_connected: false };
+  function P(id, ig, fb, name, age, city, bikes, look) {
+    return { id: id, ig_username: ig, fb_name: fb, display_name: name, age: age, city: city, bike_types: bikes, avatar_url: face(look) };
   }
   function seed() {
     var H = 36e5, D = 864e5, now = Date.now();
     function at(days, h, m) { var d = new Date(); d.setHours(h, m || 0, 0, 0); return new Date(d.getTime() + days * D).toISOString(); }
     var profiles = [
-      P("u-adam", "adam.rides", "Adam K.", 31, "Považská Bystrica", ["mtb"], { bg: "#ffe1c7", jc: "#11131a", hc: "#1b46e5", sk: 1 }, true),
-      P("u-peto", "peto_mtb", "Peter H.", 28, "Púchov", ["mtb"], { bg: "#d8efe0", jc: "#2f7d4f", hc: "#e8a400", sk: 0 }, true),
-      P("u-lucia", "lucia.gravel", "Lucia M.", 26, "Považská Bystrica", ["gravel"], { bg: "#fde2ec", jc: "#c2185b", hc: "#fff", sk: 0, fem: 1, hair: "#6b3e26" }, true),
-      P("u-tomas", "tomas.road", "Tomáš B.", 41, "Ilava", ["cesta"], { bg: "#e3e6ee", jc: "#e23b2e", hc: "#11131a", sk: 2 }, false),
-      P("u-jana", "jana_ebike", "Jana V.", 45, "Považská Teplá", ["ebike"], { bg: "#efe4fb", jc: "#7c3aed", hc: "#7c3aed", sk: 1, fem: 1, hair: "#d9a441" }, true),
-      P("u-marek", "marek.enduro", "Marek S.", 23, "Považská Bystrica", ["mtb"], { bg: "#fff1bf", jc: "#ea7a17", hc: "#11131a", sk: 0 }, false),
-      P("u-rasto", "rasto.bikes", "Rasťo D.", 37, "Dubnica nad Váhom", ["gravel"], { bg: "#d5eef5", jc: "#0e7490", hc: "#fff", sk: 2 }, false),
-      P("u-zuza", "zuzka.trail", "Zuzana P.", 30, "Považská Bystrica", ["mtb"], { bg: "#e6f4d8", jc: "#4d7c0f", hc: "#fff", sk: 0, fem: 1, hair: "#3b2a20" }, true)
+      P("u-adam", "adam.rides", null, "Adam K.", 31, "Považská Bystrica", ["mtb"], { bg: "#ffe1c7", jc: "#11131a", hc: "#1b46e5", sk: 1 }),
+      P("u-peto", "peto_mtb", "Peter Hruška", "Peter H.", 28, "Púchov", ["mtb"], { bg: "#d8efe0", jc: "#2f7d4f", hc: "#e8a400", sk: 0 }),
+      P("u-lucia", "lucia.gravel", null, "Lucia M.", 26, "Považská Bystrica", ["gravel"], { bg: "#fde2ec", jc: "#c2185b", hc: "#fff", sk: 0, fem: 1, hair: "#6b3e26" }),
+      P("u-tomas", null, "Tomáš Baran", "Tomáš B.", 41, "Ilava", ["cesta"], { bg: "#e3e6ee", jc: "#e23b2e", hc: "#11131a", sk: 2 }),
+      P("u-jana", "jana_ebike", null, "Jana V.", 45, "Považská Teplá", ["ebike"], { bg: "#efe4fb", jc: "#7c3aed", hc: "#7c3aed", sk: 1, fem: 1, hair: "#d9a441" }),
+      P("u-marek", "marek.enduro", null, "Marek S.", 23, "Považská Bystrica", ["mtb"], { bg: "#fff1bf", jc: "#ea7a17", hc: "#11131a", sk: 0 }),
+      P("u-rasto", null, "facebook.com/rasto.bikes", "Rasťo D.", 37, "Dubnica nad Váhom", ["gravel"], { bg: "#d5eef5", jc: "#0e7490", hc: "#fff", sk: 2 }),
+      P("u-zuza", "zuzka.trail", null, "Zuzana P.", 30, "Považská Bystrica", ["mtb"], { bg: "#e6f4d8", jc: "#4d7c0f", hc: "#fff", sk: 0, fem: 1, hair: "#3b2a20" })
     ];
     var F = ["u-adam", "u-peto", "u-lucia", "u-tomas", "u-jana", "u-marek"];
     function R(id, host, type, title, start, hours, meet, route, km, pace, parts, aud, note, msgs) {
@@ -47,7 +47,7 @@
     ];
     return { profiles: profiles, friends: F, incoming: ["u-rasto"], outgoing: [], shortcuts: [
       { id: "s1", name: "MTB partia", emoji: "🏔️", members: ["u-adam", "u-peto", "u-marek"] },
-      { id: "s2", name: "Gravel pohodári", emoji: "☕", members: ["u-lucia", "u-jana"] }], rides: rides, me: null, strava: false };
+      { id: "s2", name: "Gravel pohodári", emoji: "☕", members: ["u-lucia", "u-jana"] }], rides: rides, me: null };
   }
   var D = null;
   function load() { try { D = JSON.parse(localStorage.getItem(KEY)); } catch (e) { D = null; } if (!D) D = seed(); }
@@ -63,22 +63,15 @@
 
   var api = {
     mode: "demo",
-    features: { instagram: true, strava: true },
     init: function () { return wait({ user: D.me ? { id: "me" } : null, message: null }); },
     onAuth: function () {},
     userId: function () { return D.me ? "me" : null; },
-    loginInstagram: function (link) {
-      if (link) { D.me.ig_verified = true; save(); return wait().then(function () { location.reload(); }); }
-      D.me = { id: "me", ig_username: "martin.rides.pb", display_name: "Martin", age: null, city: "Považská Bystrica", bike_types: ["mtb", "gravel"], avatar_url: null, ig_verified: true, strava_connected: false };
-      save(); return wait().then(function () { location.reload(); });
-    },
     loginEmail: function (email) {
-      D.me = { id: "me", ig_username: null, display_name: "", age: null, city: "", bike_types: [], avatar_url: null, ig_verified: false, strava_connected: false, email: email };
+      D.me = { id: "me", ig_username: null, fb_name: null, display_name: "", age: null, city: "", bike_types: [], avatar_url: null, email: email };
       save(); return wait().then(function () { setTimeout(function () { location.reload(); }, 900); });
     },
     verifyEmailCode: function () { return wait(); },
     logout: function () { localStorage.removeItem(KEY); load(); return wait(); },
-    handleRedirect: function () { return wait(null); },
     me: function () { return wait(copy(D.me)); },
     profile: function (id) { return wait(copy(prof(id))); },
     profiles: function (ids) { return wait(ids.map(prof).filter(Boolean).map(copy)); },
@@ -91,10 +84,11 @@
         .then(function (url) { D.me.avatar_url = url; save(); return copy(D.me); });
     },
     searchProfiles: function (q) {
-      q = q.replace(/^@/, "").toLowerCase();
-      return wait(D.profiles.filter(function (p) { return q.length > 1 && p.ig_username.indexOf(q) > -1; }).map(copy));
+      function n(x) { return String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+      q = n(q.trim().replace(/^@/, ""));
+      return wait(D.profiles.filter(function (p) { return q.length > 1 && (n(p.display_name).indexOf(q) > -1 || n(p.ig_username).indexOf(q) > -1 || n(p.fb_name).indexOf(q) > -1); }).map(copy));
     },
-    byHandle: function (h) { return wait(copy(D.profiles.filter(function (p) { return p.ig_username === h; })[0] || null)); },
+    byInvite: function (h) { return wait(copy(D.profiles.filter(function (p) { return p.id === h || p.ig_username === h; })[0] || null)); },
     friendships: function () { return wait({ friends: D.friends.slice(), incoming: D.incoming.slice(), outgoing: D.outgoing.slice() }); },
     requestFriend: function (id) {
       if (D.incoming.indexOf(id) > -1) return api.acceptFriend(id);
@@ -155,17 +149,6 @@
       D.rides.forEach(function (r) { if (new Date(r.ends_at) < now && r.participants.indexOf("me") > -1) { if (r.host === "me") h++; else j++; } (r.photos || []).forEach(function (p) { if (p.user_id === "me") ph++; }); });
       return wait({ joined: j + 12, hosted: h + 3, photos: ph + 4 });
     },
-    igMedia: function () { return wait({ connected: !!(D.me && D.me.ig_verified), media: [], demo: true }); },
-    stravaConnect: function () { D.me.strava_connected = true; save(); return wait().then(function () { location.reload(); }); },
-    stravaData: function () {
-      if (!D.me.strava_connected) return wait({ connected: false });
-      return wait({ connected: true, week: { count: 3, km: 94, elev: 1960 }, recent: { count: 11, km: 352, elev: 6900, hours: 17 }, ytd: { count: 118, km: 4210, elev: 61200, hours: 205 },
-        activities: [{ name: "Manín – nedeľný okruh", start: new Date(Date.now() - 2 * 864e5).toISOString(), km: 31.4, moving_s: 7080, elev: 884 },
-          { name: "Súľov po práci", start: new Date(Date.now() - 4 * 864e5).toISOString(), km: 34.8, moving_s: 7560, elev: 812 },
-          { name: "Gravel okolo Váhu", start: new Date(Date.now() - 6 * 864e5).toISOString(), km: 27.9, moving_s: 4320, elev: 264 }],
-        bikes: [{ name: "Marin Alpine Trail 7", km: 1840, primary: true }, { name: "Haro Gravel Pro", km: 2370 }] });
-    },
-    stravaDisconnect: function () { D.me.strava_connected = false; save(); return wait({ connected: false }); },
     deleteAccount: function () { localStorage.removeItem(KEY); load(); return wait(); }
   };
   window.EBApi = api;
