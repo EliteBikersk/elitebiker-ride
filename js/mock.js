@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   if (window.EBApi) return;
-  var KEY = "ebride-demo-v4";
+  var KEY = "ebride-demo-v5";
   var SKIN = ["#f2c9a8", "#e3ad86", "#b97c58"];
   function face(o) {
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="' + o.bg + '"/>' +
@@ -31,9 +31,10 @@
       P("u-zuza", "zuzka.trail", null, "Zuzana P.", 30, "Považská Bystrica", ["mtb"], { bg: "#e6f4d8", jc: "#4d7c0f", hc: "#fff", sk: 0, fem: 1, hair: "#3b2a20" })
     ];
     var F = ["u-adam", "u-peto", "u-lucia", "u-tomas", "u-jana", "u-marek"];
-    function R(id, host, type, title, start, hours, meet, route, km, pace, parts, aud, note, msgs) {
+    function R(id, host, type, title, start, hours, meet, route, km, pace, parts, aud, note, msgs, vis) {
+      vis = vis || "friends";
       return { id: id, host: host, type: type, title: title, note: note || "", starts_at: start, ends_at: new Date(new Date(start).getTime() + hours * H).toISOString(),
-        meet: meet, route: route, distance_km: km, pace: pace, allow_invites: false, audience_kind: "pick", participants: parts, audience: aud, messages: msgs || [], photos: [] };
+        meet: meet, route: route, distance_km: km, pace: pace, visibility: vis, allow_invites: vis !== "private", audience_kind: "pick", participants: parts, audience: aud, messages: msgs || [], photos: [] };
     }
     var SULOV = { lat: 49.1676, lng: 18.5809, label: "Parkovisko Súľov, Súľov-Hradná" };
     var DEDOVEC = { lat: 49.1355, lng: 18.4302, label: "EliteBiker, Dedovec 4574, Považská Bystrica" };
@@ -47,6 +48,10 @@
     ];
     var dirt = R("r5", "u-marek", "dirt", "Pumptrack a dirty – celý deň", at(26, 10), 7, { lat: 49.1232, lng: 18.3301, label: "Pumptrack Púchov" }, null, null, "pohoda", ["u-marek", "u-peto"], ["me", "u-peto", "u-adam"], "Celý deň na pumptracku a dirtoch. Prilby povinné, chrániče odporúčam. Na obed grilujeme – zober niečo na gril.");
     dirt.max_people = 8; dirt.link_url = "https://www.instagram.com/elitebiker.sk/"; rides.push(dirt);
+    rides[3].visibility = "private"; rides[3].allow_invites = false;
+    // verejné jazdy cudzích bikerov – vidno ich len do 30 km od nastavenej polohy
+    rides.push(R("r6", "u-zuza", "mtb", "Večerný okruh Strážov – pre všetkých", at(3, 17, 30), 2, { lat: 49.1063, lng: 18.4428, label: "Parkovisko pod Strážovom, Považská Bystrica" }, null, 22, "pohoda", ["u-zuza", "u-rasto"], [], "Pridať sa môže hocikto, ideme pomaly. Svetlá povinné.", [], "public"));
+    rides.push(R("r7", "u-rasto", "gravel", "Gravel okolo Bratislavy", at(4, 10), 4, { lat: 48.1486, lng: 17.1077, label: "Eurovea, Bratislava" }, null, 60, "stredne", ["u-rasto"], [], "", [], "public"));
     return { profiles: profiles, friends: F, incoming: ["u-rasto"], outgoing: [], shortcuts: [
       { id: "s1", name: "MTB partia", emoji: "🏔️", members: ["u-adam", "u-peto", "u-marek"] },
       { id: "s2", name: "Gravel pohodári", emoji: "☕", members: ["u-lucia", "u-jana"] }], rides: rides, me: null };
@@ -57,7 +62,11 @@
   function wait(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 120); }); }
   function prof(id) { if (id === "me") return D.me; for (var i = 0; i < D.profiles.length; i++) if (D.profiles[i].id === id) return D.profiles[i]; return null; }
   function ride(id) { for (var i = 0; i < D.rides.length; i++) if (D.rides[i].id === id) return D.rides[i]; }
-  function visible(r) { return r.host === "me" || r.participants.indexOf("me") > -1 || r.audience.indexOf("me") > -1; }
+  function km(a, b) { var R = 6371, dl = (b.lat - a.lat) * Math.PI / 180, dn = (b.lng - a.lng) * Math.PI / 180, x = Math.sin(dl / 2) * Math.sin(dl / 2) + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dn / 2) * Math.sin(dn / 2); return 2 * R * Math.asin(Math.min(1, Math.sqrt(x))); }
+  function visible(r) {
+    if (r.host === "me" || r.participants.indexOf("me") > -1 || r.audience.indexOf("me") > -1) return true;
+    return r.visibility === "public" && new Date(r.ends_at) > new Date() && !!D.loc && km(D.loc, r.meet) <= 30;
+  }
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
   function blankMe(email) { return { id: "me", ig_username: null, fb_name: null, display_name: "", age: null, city: "", bike_types: [], avatar_url: null, email: email }; }
   var listeners = [], chatL = {};
@@ -92,6 +101,8 @@
     },
     verifyEmailCode: function () { return wait(); },
     logout: function () { localStorage.removeItem(KEY); load(); return wait(); },
+    logoutAll: function () { return api.logout(); },
+    isAdmin: function () { return wait(false); },
     me: function () { return wait(copy(D.me)); },
     profile: function (id) { return wait(copy(prof(id))); },
     profiles: function (ids) { return wait(ids.map(prof).filter(Boolean).map(copy)); },
@@ -106,9 +117,12 @@
     searchProfiles: function (q) {
       function n(x) { return String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
       q = n(q.trim().replace(/^@/, ""));
-      return wait(D.profiles.filter(function (p) { return q.length > 1 && (n(p.display_name).indexOf(q) > -1 || n(p.ig_username).indexOf(q) > -1 || n(p.fb_name).indexOf(q) > -1); }).map(copy));
+      return wait(D.profiles.filter(function (p) { return q.length > 2 && (n(p.display_name).indexOf(q) > -1 || n(p.ig_username).indexOf(q) > -1 || n(p.fb_name).indexOf(q) > -1); })
+        .slice(0, 10).map(function (p) { return { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url, city: p.city, ig_username: p.ig_username }; }));
     },
-    byInvite: function (h) { return wait(copy(D.profiles.filter(function (p) { return p.id === h || p.ig_username === h; })[0] || null)); },
+    location: function () { return wait(D.loc ? copy(D.loc) : null); },
+    setLocation: function (l) { D.loc = { lat: Math.round(l.lat * 100) / 100, lng: Math.round(l.lng * 100) / 100, label: l.label || null }; changed(); return wait(copy(D.loc)); },
+    clearLocation: function () { D.loc = null; changed(); return wait(); },
     friendships: function () { return wait({ friends: D.friends.slice(), incoming: D.incoming.slice(), outgoing: D.outgoing.slice() }); },
     requestFriend: function (id) {
       if (D.incoming.indexOf(id) > -1) return api.acceptFriend(id);
@@ -141,8 +155,9 @@
       }, 5000);
       return wait(r.id);
     },
+    setVisibility: function (id, v) { var r = ride(id); r.visibility = v; r.allow_invites = v !== "private"; changed(); return wait(); },
     cancelRide: function (id) { D.rides = D.rides.filter(function (r) { return r.id !== id; }); changed(); return wait(); },
-    joinRide: function (id) { var r = ride(id); if (r.participants.indexOf("me") < 0) r.participants.push("me"); changed(); return wait(); },
+    joinRide: function (id) { var r = ride(id); if (!visible(r)) return Promise.reject(new Error("Pridať sa nepodarilo.")); if (r.participants.indexOf("me") < 0) r.participants.push("me"); changed(); return wait(); },
     leaveRide: function (id) { var r = ride(id); r.participants = r.participants.filter(function (x) { return x !== "me"; }); changed(); return wait(); },
     invite: function (id, ids) { var r = ride(id); ids.forEach(function (u) { if (r.audience.indexOf(u) < 0) r.audience.push(u); }); changed();
       setTimeout(function () { if (r.participants.indexOf(ids[0]) < 0) { r.participants.push(ids[0]); changed(); } }, 3500); return wait(); },
@@ -164,10 +179,17 @@
       }).then(function (url) { if (!url) throw new Error("Tento súbor nie je fotka."); var r = ride(id); r.photos.unshift({ id: "p" + Date.now(), user_id: "me", path: "", url: url }); changed(); });
     },
     deletePhoto: function (p) { D.rides.forEach(function (r) { r.photos = (r.photos || []).filter(function (x) { return x.id !== p.id; }); }); changed(); return wait(); },
-    stats: function () {
-      var now = new Date(), j = 0, h = 0, ph = 0;
-      D.rides.forEach(function (r) { if (new Date(r.ends_at) < now && r.participants.indexOf("me") > -1) { if (r.host === "me") h++; else j++; } (r.photos || []).forEach(function (p) { if (p.user_id === "me") ph++; }); });
-      return wait({ joined: j + 12, hosted: h + 3, photos: ph + 4 });
+    points: function () {
+      var now = new Date(), j = 12, h = 3, ph = 4;
+      D.rides.forEach(function (r) {
+        if (new Date(r.ends_at) >= now || r.participants.length < 2 || r.participants.indexOf("me") < 0) return;
+        if (r.host === "me") h++; else j++;
+        ph += Math.min(5, (r.photos || []).filter(function (p) { return p.user_id === "me"; }).length);
+      });
+      var adj = D.adj || [{ kind: "bonus", delta: 100, reason: "Bonus za nákup v predajni", at: new Date(Date.now() - 6 * 864e5).toISOString() }, { kind: "reward", delta: -50, reason: "Káva po jazde", at: new Date(Date.now() - 3 * 864e5).toISOString() }];
+      var bonus = 0, spent = 0; adj.forEach(function (a) { if (a.kind === "reward") spent -= a.delta; else bonus += a.delta; });
+      var earned = j * 20 + h * 50 + ph * 10 + bonus;
+      return wait({ joined: j, hosted: h, photos: ph, bonus: bonus, spent: spent, earned: earned, balance: earned - spent, history: adj.slice().reverse() });
     },
     weather: function (points) {
       var out = {}, now = new Date(); now.setMinutes(0, 0, 0);
@@ -186,6 +208,7 @@
     pushSave: function () { D.push = true; save(); return wait(); },
     pushDelete: function () { D.push = false; save(); return wait(); },
     pushTest: function () { return wait({ sent: 1 }); },
+    exportData: function () { return wait({ exported_at: new Date().toISOString(), profile: copy(D.me), location: D.loc || null, rides_hosted: D.rides.filter(function (r) { return r.host === "me"; }).map(function (r) { return { title: r.title, starts_at: r.starts_at, visibility: r.visibility }; }) }); },
     deleteAccount: function () { localStorage.removeItem(KEY); load(); return wait(); }
   };
   window.EBApi = api;

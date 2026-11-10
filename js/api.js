@@ -11,7 +11,13 @@
   var me = null;
   var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,age,city,bike_types";
 
-  function fail(error, msg) { if (error) { console.error(error); throw new Error(msg || error.message || "Chyba servera"); } }
+  // naše hlásenia zo servera (limity, kontroly) ukážeme priamo, ostatné nahradíme zrozumiteľnou vetou
+  function fail(error, msg) {
+    if (!error) return;
+    console.error(error);
+    if (error.code === "P0001" || error.code === "22023" || error.hint === "rate_limit") throw new Error(error.message);
+    throw new Error(msg || error.message || "Chyba servera");
+  }
   function rnd() { var a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, function (b) { return b.toString(16).padStart(2, "0"); }).join(""); }
   function fn(name, body) {
     return sb.functions.invoke(name, { body: body || {} }).then(function (r) {
@@ -36,7 +42,7 @@
       starts_at: r.starts_at, ends_at: r.ends_at,
       meet: { lat: r.meet_lat, lng: r.meet_lng, label: r.meet_label || "" },
       route: r.route || null, distance_km: r.distance_km != null ? +r.distance_km : null, elevation_m: r.elevation_m,
-      pace: r.pace, allow_invites: r.allow_invites, audience_kind: r.audience_kind, max_people: r.max_people || null, link_url: r.link_url || null,
+      pace: r.pace, visibility: r.visibility || (r.allow_invites ? "friends" : "private"), allow_invites: r.allow_invites, audience_kind: r.audience_kind, max_people: r.max_people || null, link_url: r.link_url || null,
       participants: (r.ride_participants || []).map(function (p) { return p.user_id; }),
       audience: (r.ride_audience || []).map(function (p) { return p.user_id; })
     };
@@ -86,7 +92,7 @@
         if (r.error) {
           if (/registered|exists/i.test(r.error.message)) throw new Error("Tento e-mail už má účet – prihlás sa.");
           if (/rate|security purposes|seconds/i.test(r.error.message)) throw new Error("Príliš veľa pokusov. Skús to o minútu.");
-          if (/password/i.test(r.error.message)) throw new Error("Heslo je príliš slabé – použi aspoň 8 znakov.");
+          if (/password/i.test(r.error.message)) throw new Error("Heslo je príliš slabé – použi aspoň 8 znakov, písmeno aj číslicu.");
           fail(r.error, "Účet sa nepodarilo vytvoriť.");
         }
         if (r.data.session) return { session: true };
@@ -103,6 +109,7 @@
     setPassword: function (pw) {
       return sb.auth.updateUser({ password: pw, data: { has_password: true } }).then(function (r) {
         if (r.error && /different|same/i.test(r.error.message)) throw new Error("Nové heslo musí byť iné ako to staré.");
+        if (r.error && /weak|characters|length/i.test(r.error.message)) throw new Error("Heslo je príliš slabé – použi aspoň 8 znakov, písmeno aj číslicu.");
         if (r.error && /reauthenticat|recent/i.test(r.error.message)) throw new Error("Z bezpečnostných dôvodov sa odhlás a prihlás kódom z e-mailu, potom heslo nastav znova.");
         fail(r.error, "Heslo sa nepodarilo uložiť."); if (r.data && r.data.user) me = r.data.user;
       });
@@ -113,6 +120,8 @@
       return sb.auth.verifyOtp({ email: email, token: code, type: "email" }).then(function (r) { fail(r.error, "Kód nesedí alebo vypršal. Pošli si nový."); });
     },
     logout: function () { return sb.auth.signOut(); },
+    logoutAll: function () { return sb.auth.signOut({ scope: "global" }); },
+    isAdmin: function () { return sb.rpc("admin_status").then(function (r) { return !r.error && r.data && r.data.admin; }); },
 
     /* ---------- profily ---------- */
     me: function () { return api.profile(me.id); },
@@ -129,24 +138,35 @@
     },
     uploadAvatar: function (file) {
       return compress(file, 512, .85).then(function (blob) {
-        var path = me.id + "/avatar-" + Date.now() + ".jpg";
+        var name = "avatar-" + Date.now() + ".jpg", path = me.id + "/" + name;
         return sb.storage.from("avatars").upload(path, blob, { contentType: "image/jpeg", upsert: true }).then(function (r) {
           fail(r.error, "Fotku sa nepodarilo nahrať.");
-          return api.updateProfile({ avatar_url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl });
+          return api.updateProfile({ avatar_url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl }).then(function (p) {
+            // staré profilovky zmažeme, nech na serveri neostávajú
+            sb.storage.from("avatars").list(me.id, { limit: 100 }).then(function (l) {
+              var old = (l.data || []).map(function (f) { return me.id + "/" + f.name; }).filter(function (x) { return x !== path; });
+              if (old.length) sb.storage.from("avatars").remove(old);
+            }).catch(function () {});
+            return p;
+          });
         });
       });
     },
     searchProfiles: function (q) {
       q = String(q || "").trim().replace(/^@/, "");
-      if (q.length < 2) return Promise.resolve([]);
-      return sb.rpc("search_profiles", { q: q }).select(PROFILE_COLS).then(function (r) { fail(r.error, "Hľadanie zlyhalo."); return r.data; });
+      if (q.length < 3) return Promise.resolve([]);
+      return sb.rpc("search_profiles", { q: q }).then(function (r) { fail(r.error, "Hľadanie zlyhalo."); return r.data || []; });
     },
-    byInvite: function (v) {
-      v = String(v || "").toLowerCase().replace(/^@/, "");
-      var q = sb.from("profiles").select(PROFILE_COLS);
-      q = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v) ? q.eq("id", v) : q.eq("ig_username", v);
-      return q.maybeSingle().then(function (r) { return r.data; });
+
+    /* ---------- poloha pre verejné jazdy (ukladá sa len približne, na ~1 km) ---------- */
+    location: function () {
+      return sb.from("user_locations").select("lat,lng,label").eq("user_id", me.id).maybeSingle().then(function (r) { return r.error ? null : r.data; });
     },
+    setLocation: function (l) {
+      var row = { user_id: me.id, lat: Math.round(l.lat * 100) / 100, lng: Math.round(l.lng * 100) / 100, label: String(l.label || "").slice(0, 80) || null };
+      return sb.from("user_locations").upsert(row).select("lat,lng,label").single().then(function (r) { fail(r.error, "Polohu sa nepodarilo uložiť."); return r.data; });
+    },
+    clearLocation: function () { return sb.from("user_locations").delete().eq("user_id", me.id).then(function (r) { fail(r.error); }); },
 
     /* ---------- pozývacie odkazy ---------- */
     createInvite: function (rideId) {
@@ -208,7 +228,7 @@
         host: me.id, type: d.type, title: d.title, note: d.note || null, starts_at: d.starts_at, ends_at: d.ends_at,
         meet_lat: d.meet.lat, meet_lng: d.meet.lng, meet_label: d.meet.label, route: d.route || null,
         distance_km: d.distance_km || null, elevation_m: d.elevation_m || null, max_people: d.max_people || null, link_url: d.link_url || null,
-        pace: d.pace, allow_invites: !!d.allow_invites, audience_kind: d.audience_kind || "pick"
+        pace: d.pace, visibility: d.visibility || "friends", audience_kind: d.audience_kind || "pick"
       };
       return sb.from("rides").insert(row).select().single().then(function (r) {
         fail(r.error, "Jazdu sa nepodarilo uložiť.");
@@ -216,6 +236,7 @@
         return (rows.length ? sb.from("ride_audience").insert(rows) : Promise.resolve({})).then(function (x) { fail(x.error, "Jazda je uložená, ale pozvánky sa nepodarilo poslať."); return r.data.id; });
       });
     },
+    setVisibility: function (id, v) { return sb.from("rides").update({ visibility: v }).eq("id", id).then(function (r) { fail(r.error, "Zmenu sa nepodarilo uložiť."); }); },
     cancelRide: function (id) { return sb.from("rides").delete().eq("id", id).then(function (r) { fail(r.error); }); },
     joinRide: function (id) { return sb.from("ride_participants").insert({ ride_id: id, user_id: me.id }).then(function (r) { fail(r.error, "Pridať sa nepodarilo."); }); },
     leaveRide: function (id) { return sb.from("ride_participants").delete().eq("ride_id", id).eq("user_id", me.id).then(function (r) { fail(r.error); }); },
@@ -262,17 +283,8 @@
       return sb.storage.from("ride-photos").remove([p.path]).then(function () { return sb.from("ride_photos").delete().eq("id", p.id); }).then(function (r) { fail(r.error); });
     },
 
-    /* ---------- Klub ---------- */
-    stats: function () {
-      var now = new Date().toISOString();
-      return Promise.all([
-        sb.from("ride_participants").select("ride_id, rides!inner(host, ends_at)").eq("user_id", me.id).lt("rides.ends_at", now),
-        sb.from("ride_photos").select("id", { count: "exact", head: true }).eq("user_id", me.id)
-      ]).then(function (r) {
-        var rows = (r[0].data || []), hosted = rows.filter(function (x) { return x.rides && x.rides.host === me.id; }).length;
-        return { joined: rows.length - hosted, hosted: hosted, photos: r[1].count || 0 };
-      });
-    },
+    /* ---------- Klub: body počíta server (nedajú sa podvrhnúť) ---------- */
+    points: function () { return sb.rpc("my_points").then(function (r) { fail(r.error, "Body sa nepodarilo načítať."); return r.data; }); },
 
     /* ---------- počasie a upozornenia ---------- */
     weather: function (points) { return fn("weather", { points: points }).then(function (d) { return d.data || {}; }); },
@@ -284,6 +296,7 @@
     pushTest: function () { return fn("weather-alerts", { test: true }); },
 
     /* ---------- účet ---------- */
+    exportData: function () { return sb.rpc("export_my_data").then(function (r) { fail(r.error, "Údaje sa nepodarilo pripraviť."); return r.data; }); },
     deleteAccount: function () { return fn("delete-account").then(function () { return sb.auth.signOut(); }); }
   };
   window.EBApi = api;

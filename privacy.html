@@ -2,9 +2,11 @@
 <html lang="sk">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://cdn.myshoptet.com; font-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ochrana súkromia – EliteBiker Ride</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/fonts.css">
 <style>
 body{margin:0;background:#f4f6f8;font-family:Poppins,system-ui,sans-serif;color:#3a4150;line-height:1.65}
 .w{max-width:760px;margin:0 auto;padding:32px 18px 60px}
@@ -33,25 +35,38 @@ img{height:34px;margin-bottom:18px}
 <li><b>Kontakt:</b> Instagram meno a/alebo Facebook meno či odkaz na profil, ktoré sám zadáš – aby ti kamoši vedeli napísať. S Instagramom ani Facebookom sa aplikácia neprepája a nič z nich nenačítava.</li>
 <li><b>Prihlásenie:</b> e-mail.</li>
 <li><b>Jazdy:</b> čas, miesto stretka, trasa, účastníci, správy v chate a fotky z jazdy.</li>
+<li><b>Poloha pre verejné jazdy (nepovinné):</b> ak ju nastavíš, uložíme len <b>približné miesto (zaokrúhlené na ~1 km)</b> a názov mesta – aby sme ti ukázali verejné jazdy do 30 km. Vidíš ju iba ty, ostatní nevedia, kde si. Zrušiť ju môžeš kedykoľvek v Profile.</li>
+<li><b>EB body:</b> počítajú sa z jázd a fotiek; bonusy a vydané odmeny zapisuje EliteBiker aj s dôvodom, ktorý vidíš v Klube.</li>
 <li><b>Upozornenia:</b> ak ich zapneš, uložíme technickú adresu tvojho zariadenia, aby sme ti mohli poslať upozornenie na zlé počasie. Vypnúť ich môžeš kedykoľvek v Profile.</li>
 <li><b>Počasie:</b> súradnice miesta stretka posielame bez osobných údajov službe MET Norway (yr.no), ktorá nám vráti predpoveď.</li>
 </ul>
 
 <h2>Kto čo vidí</h2>
 <ul>
-<li>Tvoj profil (meno, fotku, vek, mesto, Instagram/Facebook kontakt) vidia prihlásení používatelia aplikácie.</li>
-<li>Jazdu vidia len ľudia, ktorým ju pošleš.</li>
+<li>Tvoj profil (meno, fotku, vek, mesto, Instagram/Facebook kontakt) vidia len ľudia, s ktorými máš niečo spoločné: priatelia, ľudia, ktorí ti poslali žiadosť alebo ktorým si ju poslal ty, a účastníci jázd, ktoré vidíš. Pri hľadaní podľa mena sa ukáže len meno, fotka, mesto a Instagram.</li>
+<li><b>Jazda pre partiu</b> a <b>jazda len pre vybraných</b> – vidia ju len pozvaní. <b>Verejnú jazdu</b> vidia všetci, ktorí majú nastavenú polohu do 30 km od stretka; kto sa na ňu pridá, uvidí profily ostatných jazdcov.</li>
 <li>Chat jazdy vidia len jej účastníci a <b>po skončení jazdy sa automaticky zmaže</b>.</li>
-<li>Fotky z jazdy vidia pozvaní na jazdu.</li>
+<li>Fotky z jazdy vidia len pozvaní a účastníci jazdy.</li>
+<li>EliteBiker s.r.o. (administrátor) vidí zoznam používateľov s e-mailom a bodmi, aby mohol vydávať odmeny. Obsah súkromných jázd a chatov administrácia nevidí. Každá zmena bodov sa zapisuje.</li>
+</ul>
+
+<h2>Ako údaje chránime</h2>
+<ul>
+<li>Celé spojenie je šifrované (HTTPS/TLS), databáza a súbory sú na serveri uložené šifrovane.</li>
+<li>Heslo neukladáme – ukladá sa len jeho bezpečný odtlačok (bcrypt). Tajné kľúče servera sú zašifrované v trezore (Supabase Vault).</li>
+<li>Každý riadok v databáze chránia pravidlá prístupu – server vráti len to, čo smieš vidieť, aj keby niekto obišiel aplikáciu.</li>
+<li>Limity proti zneužitiu (napr. hromadné hľadanie ľudí, spam v chate), prístup administrátora len s dvojstupňovým overením a záznamom zmien.</li>
+<li>Stránka nenačítava písmo ani skripty od tretích strán a nedá sa vložiť do cudzej stránky.</li>
 </ul>
 
 <h2>Kde sú údaje uložené</h2>
-<p>Na serveroch služby Supabase v EÚ. Mapy poskytuje OpenStreetMap, predpoveď počasia MET Norway (licencia CC BY 4.0). Údaje nepredávame a nepoužívame na reklamu.</p>
+<p>Na serveroch služby Supabase v EÚ (Frankfurt). Mapy a vyhľadávanie miest poskytuje OpenStreetMap, predpoveď počasia MET Norway (licencia CC BY 4.0). Údaje nepredávame a nepoužívame na reklamu.</p>
 
 <h2>Zmazanie údajov</h2>
 <p>V aplikácii: <b>Profil → Zmazať účet a všetky údaje</b>. Zmažú sa profil, jazdy, správy a fotky. Môžeš nám tiež napísať na <a href="mailto:info@elitebiker.sk">info@elitebiker.sk</a> – údaje zmažeme do 30 dní.</p>
 
 <h2>Tvoje práva</h2>
+<p>Všetky svoje údaje si môžeš kedykoľvek stiahnuť v aplikácii: <b>Profil → Moje údaje → Stiahnuť</b>. Ak si sa prihlásil na cudzom zariadení, použi <b>Odhlásiť zo všetkých zariadení</b>.</p>
 <p>Máš právo na prístup k údajom, ich opravu, vymazanie, obmedzenie spracúvania, prenosnosť a podanie sťažnosti na Úrad na ochranu osobných údajov SR.</p>
 
 <p style="margin-top:28px"><a href="./">← Späť do aplikácie</a></p>

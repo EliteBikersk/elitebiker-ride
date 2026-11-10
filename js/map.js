@@ -180,5 +180,15 @@
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
-  window.EBMap = { ok: ok, showRide: showRide, pickPoint: pickPoint, drawRoute: drawRoute, routeKm: routeKm, reverse: reverse, PIN_SVG: PIN_SVG, FLAG_SVG: FLAG_SVG };
+  // názov mesta/obce pre približnú polohu (posiela sa len zaokrúhlená poloha)
+  function place(lat, lng) {
+    return throttled("https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&addressdetails=1&lat=" + (+lat).toFixed(2) + "&lon=" + (+lng).toFixed(2))
+      .then(function (j) { var a = (j && j.address) || {}; return a.city || a.town || a.village || a.municipality || a.county || ""; });
+  }
+  function towns(q) {
+    return throttled("https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&countrycodes=sk,cz,at,hu,pl&featureType=settlement&q=" + encodeURIComponent(q))
+      .then(function (j) { return (j || []).map(function (r) { var a = r.address || {}; return { lat: +r.lat, lng: +r.lon, label: a.city || a.town || a.village || a.municipality || r.name || String(r.display_name || "").split(",")[0], full: r.display_name }; }); });
+  }
+
+  window.EBMap = { ok: ok, showRide: showRide, pickPoint: pickPoint, drawRoute: drawRoute, routeKm: routeKm, reverse: reverse, search: search, place: place, towns: towns, haversine: haversine, PIN_SVG: PIN_SVG, FLAG_SVG: FLAG_SVG };
 })();

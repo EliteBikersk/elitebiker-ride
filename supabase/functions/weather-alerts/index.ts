@@ -31,11 +31,27 @@ async function sendTo(db: ReturnType<typeof admin>, userIds: string[], payload: 
   return ok;
 }
 
+// tajné kľúče sú zašifrované v Supabase Vault (čítať ich môže len server)
+async function secrets(db: ReturnType<typeof admin>): Promise<Record<string, string>> {
+  const { data, error } = await db.rpc("server_secrets");
+  if (!error && data && typeof data === "object" && Object.keys(data).length) return data as Record<string, string>;
+  const { data: old } = await db.from("app_secrets").select("name, value");   // pred presunom do Vaultu
+  return Object.fromEntries((old ?? []).map((x: { name: string; value: string }) => [x.name, x.value]));
+}
+
+// porovnanie bez úniku informácie cez čas odpovede
+function sameSecret(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a), y = new TextEncoder().encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req) });
   const db = admin();
-  const { data: sec } = await db.from("app_secrets").select("name, value");
-  const S = Object.fromEntries((sec ?? []).map((x) => [x.name, x.value]));
+  const S = await secrets(db);
+  if (!S.vapid_public || !S.vapid_private) return json(req, { error: "Upozornenia nie sú nastavené." }, 500);
   webpush.setVapidDetails(APP, S.vapid_public, S.vapid_private);
   const body = await readJson(req);
 
@@ -48,7 +64,7 @@ Deno.serve(async (req) => {
   }
 
   // pg_cron
-  if (!S.cron_key || req.headers.get("x-cron-key") !== S.cron_key) return json(req, { error: "forbidden" }, 403);
+  if (!S.cron_key || !sameSecret(req.headers.get("x-cron-key") ?? "", S.cron_key)) return json(req, { error: "forbidden" }, 403);
   const now = Date.now();
   const { data: rides } = await db.from("rides").select("id, title, starts_at, ends_at, meet_lat, meet_lng, ride_participants(user_id)")
     .gt("starts_at", new Date(now + 30 * 60e3).toISOString()).lte("starts_at", new Date(now + 24 * 3600e3).toISOString());

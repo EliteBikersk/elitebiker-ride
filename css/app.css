@@ -773,3 +773,42 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .bgs img,.bgs .blue{display:block;width:100%;height:100%;object-fit:cover}
 .bgs .blue{background:linear-gradient(160deg,#2a56ff,#0b1233)}
 @media (max-height:700px){.storyprev{width:min(100%,220px)}}
+
+/* ---------- verejné jazdy, poloha, viditeľnosť ---------- */
+.chip.pub{background:#ecfdf3;border-color:#bfe6cd;color:#15803d}
+.near{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:#fff;border:1px solid var(--ln);border-radius:14px;padding:10px 14px;margin-top:14px;font-size:13px;color:var(--tx)}
+.near b{color:var(--ink)}
+.near small{color:var(--b);font-weight:700;font-size:12.5px;flex:0 0 auto}
+.near .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ni{font-size:20px;line-height:1;flex:0 0 auto}
+.nearcta{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#ecfdf3,#fff 75%);border:1px solid #bfe6cd;border-radius:16px;padding:14px;margin-top:14px}
+.nearcta .grow{flex:1;min-width:0}
+.nearcta b{display:block;color:var(--ink);font-size:14.5px}
+.nearcta small{display:block;color:var(--mu);font-size:12.5px;line-height:1.4;margin-top:2px}
+.nearcta .btn{flex:0 0 auto}
+.vis{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.vis button{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;background:#fff;border:1.5px solid var(--ln);border-radius:16px;padding:12px 14px;transition:border-color .15s,background .15s}
+.vis button i{font-style:normal;font-size:22px;line-height:1.1;flex:0 0 auto;width:28px;text-align:center}
+.vis button b{display:block;color:var(--ink);font-size:14.5px}
+.vis button small{display:block;color:var(--mu);font-size:12.5px;line-height:1.4;margin-top:2px}
+.vis button.on{border-color:var(--b);background:var(--lb);box-shadow:inset 0 0 0 1px var(--b)}
+.vis button.on b{color:var(--b)}
+.chip.vbtn{cursor:pointer;border-color:var(--lbl);background:var(--lb);color:var(--b)}
+.chip.vbtn u{text-decoration:none;opacity:.75;font-weight:600;margin-left:2px}
+.pubnote{font-size:12.5px;color:var(--mu);margin:10px 2px 0;line-height:1.45}
+.locrow{width:100%;text-align:left;background:none}
+.locrow .ic{width:34px;height:34px;border-radius:10px;background:var(--lb);color:var(--b);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.locrow .ic svg{width:18px;height:18px}
+/* Klub */
+.kh .memb{font-size:12px;opacity:.8;margin-top:6px}
+.kh .memb b{letter-spacing:.06em}
+.kh .kfine{font-size:11px;opacity:.65;margin-top:6px}
+.hrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--ln)}
+.hrow:last-child{border-bottom:0}
+.hrow .grow{flex:1;min-width:0}
+.hrow b{display:block;color:var(--ink);font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hrow small{color:var(--mu);font-size:12px}
+.hrow .pos{color:var(--ok);font-weight:800}.hrow .neg{color:#c2410c;font-weight:800}
+.admlink{display:flex;align-items:center;gap:12px;background:var(--ink);color:#fff;border-radius:16px;padding:14px 16px;margin-top:14px;text-decoration:none;font-weight:700}
+.admlink .grow{flex:1}.admlink small{display:block;font-weight:500;opacity:.75;font-size:12px}
+.kv small.em{display:block}
