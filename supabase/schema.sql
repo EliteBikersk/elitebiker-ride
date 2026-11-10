@@ -54,9 +54,9 @@ create table if not exists public.shortcuts (
 create table if not exists public.rides (
   id            uuid primary key default gen_random_uuid(),
   host          uuid not null default auth.uid() references public.profiles(id) on delete cascade,
-  type          text not null check (type in ('cesta','gravel','mtb','ebike')),
+  type          text not null check (type in ('cesta','gravel','mtb','ebike','dirt')),
   title         text not null check (char_length(title) between 1 and 80),
-  note          text check (char_length(note) <= 500),
+  note          text check (char_length(note) <= 2000),
   starts_at     timestamptz not null,
   ends_at       timestamptz not null,
   meet_lat      double precision not null check (meet_lat between -90 and 90),
@@ -68,12 +68,22 @@ create table if not exists public.rides (
   pace          text not null default 'stredne' check (pace in ('pohoda','stredne','rychlo')),
   allow_invites boolean not null default false,
   audience_kind text not null default 'pick' check (audience_kind in ('pick','friends')),
+  max_people    int check (max_people between 2 and 500),          -- nepovinný limit ľudí
+  link_url      text check (char_length(link_url) <= 300 and link_url ~* '^https?://'),  -- trasa/akcia
   created_at    timestamptz not null default now(),
   check (ends_at > starts_at)
 );
 create index if not exists rides_starts_idx on public.rides(starts_at);
 
 -- kto jazdu vidí (pozvaní)
+-- doplnenie pre staršie databázy (Dirt/BMX, dlhší popis, limit ľudí, odkaz)
+alter table public.rides add column if not exists max_people int check (max_people between 2 and 500);
+alter table public.rides add column if not exists link_url text check (char_length(link_url) <= 300 and link_url ~* '^https?://');
+alter table public.rides drop constraint if exists rides_type_check;
+alter table public.rides add constraint rides_type_check check (type in ('cesta','gravel','mtb','ebike','dirt'));
+alter table public.rides drop constraint if exists rides_note_check;
+alter table public.rides add constraint rides_note_check check (char_length(note) <= 2000);
+
 create table if not exists public.ride_audience (
   ride_id    uuid not null references public.rides(id) on delete cascade,
   user_id    uuid not null references public.profiles(id) on delete cascade,
@@ -142,6 +152,12 @@ create or replace function private.can_invite(r uuid) returns boolean
 language sql stable security definer set search_path = public as $$
   select exists (select 1 from rides where id = r and ends_at > now()
                  and (host = auth.uid() or (allow_invites and private.is_participant(r))));
+$$;
+
+create or replace function private.has_room(r uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select (select max_people from rides where id = r) is null
+      or (select count(*) from ride_participants where ride_id = r) < (select max_people from rides where id = r);
 $$;
 
 create or replace function private.try_uuid(t text) returns uuid
@@ -255,7 +271,7 @@ create policy "účastníci – čítanie" on public.ride_participants for selec
   using (private.can_see_ride(ride_id));
 drop policy if exists "účastníci – pridám sa" on public.ride_participants;
 create policy "účastníci – pridám sa" on public.ride_participants for insert to authenticated
-  with check (user_id = auth.uid() and private.can_see_ride(ride_id) and private.chat_open(ride_id));
+  with check (user_id = auth.uid() and private.can_see_ride(ride_id) and private.chat_open(ride_id) and private.has_room(ride_id));
 drop policy if exists "účastníci – odhlásim sa" on public.ride_participants;
 create policy "účastníci – odhlásim sa" on public.ride_participants for delete to authenticated
   using (user_id = auth.uid() and private.ride_host(ride_id) <> auth.uid());
@@ -417,6 +433,9 @@ begin
       return json_build_object('ok', true, 'inviter', i.inviter, 'ride_id', null, 'reason', 'ride_ended');
     end if;
     insert into ride_audience (ride_id, user_id, invited_by) values (r.id, me, i.inviter) on conflict do nothing;
+    if r.max_people is not null and (select count(*) from ride_participants where ride_id = r.id and user_id <> me) >= r.max_people then
+      return json_build_object('ok', true, 'inviter', i.inviter, 'ride_id', r.id, 'reason', 'full');
+    end if;
     insert into ride_participants (ride_id, user_id) values (r.id, me) on conflict do nothing;
   end if;
   return json_build_object('ok', true, 'inviter', i.inviter, 'ride_id', i.ride_id);

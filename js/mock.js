@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   if (window.EBApi) return;
-  var KEY = "ebride-demo-v3";
+  var KEY = "ebride-demo-v4";
   var SKIN = ["#f2c9a8", "#e3ad86", "#b97c58"];
   function face(o) {
     var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" fill="' + o.bg + '"/>' +
@@ -45,6 +45,8 @@
       R("r4", "u-tomas", "cesta", "Javorníky – Kasárne", at(5, 8), 4, { lat: 49.1503, lng: 18.4013, label: "Orlové, Považská Bystrica" }, null, 88, "rychlo", ["u-tomas"], ["me"], "Tempo okolo 30 km/h na rovine."),
       R("r0", "me", "mtb", "Manín – nedeľný okruh", at(-2, 9, 30), 3, DEDOVEC, [[49.1355, 18.4302], [49.1316, 18.4706], [49.1355, 18.4302]], 31, "stredne", ["me", "u-adam", "u-peto", "u-lucia"], ["u-adam", "u-peto", "u-lucia"], "")
     ];
+    var dirt = R("r5", "u-marek", "dirt", "Pumptrack a dirty – celý deň", at(26, 10), 7, { lat: 49.1232, lng: 18.3301, label: "Pumptrack Púchov" }, null, null, "pohoda", ["u-marek", "u-peto"], ["me", "u-peto", "u-adam"], "Celý deň na pumptracku a dirtoch. Prilby povinné, chrániče odporúčam. Na obed grilujeme – zober niečo na gril.");
+    dirt.max_people = 8; dirt.link_url = "https://www.instagram.com/elitebiker.sk/"; rides.push(dirt);
     return { profiles: profiles, friends: F, incoming: ["u-rasto"], outgoing: [], shortcuts: [
       { id: "s1", name: "MTB partia", emoji: "🏔️", members: ["u-adam", "u-peto", "u-marek"] },
       { id: "s2", name: "Gravel pohodári", emoji: "☕", members: ["u-lucia", "u-jana"] }], rides: rides, me: null };

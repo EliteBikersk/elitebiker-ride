@@ -36,7 +36,7 @@
       starts_at: r.starts_at, ends_at: r.ends_at,
       meet: { lat: r.meet_lat, lng: r.meet_lng, label: r.meet_label || "" },
       route: r.route || null, distance_km: r.distance_km != null ? +r.distance_km : null, elevation_m: r.elevation_m,
-      pace: r.pace, allow_invites: r.allow_invites, audience_kind: r.audience_kind,
+      pace: r.pace, allow_invites: r.allow_invites, audience_kind: r.audience_kind, max_people: r.max_people || null, link_url: r.link_url || null,
       participants: (r.ride_participants || []).map(function (p) { return p.user_id; }),
       audience: (r.ride_audience || []).map(function (p) { return p.user_id; })
     };
@@ -207,7 +207,8 @@
       var row = {
         host: me.id, type: d.type, title: d.title, note: d.note || null, starts_at: d.starts_at, ends_at: d.ends_at,
         meet_lat: d.meet.lat, meet_lng: d.meet.lng, meet_label: d.meet.label, route: d.route || null,
-        distance_km: d.distance_km || null, pace: d.pace, allow_invites: !!d.allow_invites, audience_kind: d.audience_kind || "pick"
+        distance_km: d.distance_km || null, elevation_m: d.elevation_m || null, max_people: d.max_people || null, link_url: d.link_url || null,
+        pace: d.pace, allow_invites: !!d.allow_invites, audience_kind: d.audience_kind || "pick"
       };
       return sb.from("rides").insert(row).select().single().then(function (r) {
         fail(r.error, "Jazdu sa nepodarilo uložiť.");

@@ -619,3 +619,110 @@ input,select,textarea{min-width:0}
   .lmap{height:150px}
 }
 .sendbar .who small{overflow:hidden;text-overflow:ellipsis}
+
+/* =====================================================================
+   VYLADENIE 10. 11. – značka, formulár jazdy, kalendár, prehliadače
+   ===================================================================== */
+/* --- značka EliteBiker Ride --- */
+.brand{display:inline-flex;align-items:center;gap:9px;min-width:0;line-height:1}
+.brand img{display:block;height:30px;width:auto;mix-blend-mode:multiply;flex:0 0 auto}
+.brand .wm{display:none}
+.brand .ride{display:inline-block;flex:0 0 auto;border:0;padding:5px 7px 5px 8px;border-radius:6px;background:var(--ink);color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.2em;line-height:1;text-transform:uppercase}
+.brand.noimg .wm{display:block;font-size:18px}
+.nav-logo.brand{margin:0 6px 24px}
+.nav-logo.brand img{height:34px}
+.brand.lg img{height:clamp(44px,13vw,60px)}
+.brand.lg .ride{font-size:13px;padding:7px 9px 7px 11px;border-radius:8px}
+.brand.lg.noimg .wm{font-size:28px}
+.onb .login-hero h1{margin-top:28px}
+@media (min-width:1024px){.view .top .brand{visibility:hidden}}
+
+/* --- tlačidlá, polia: Safari, iPhone, Firefox --- */
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.top,.sh-top{-webkit-backdrop-filter:blur(10px)}
+.view,.sheet,.onb,.mp-res{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+button,a,.btn,label{touch-action:manipulation}
+.inp{-webkit-appearance:none;appearance:none;border-radius:12px;min-height:48px;line-height:1.3}
+textarea.inp{min-height:76px;line-height:1.45}
+select.inp{padding-right:38px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239aa0b5' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center;cursor:pointer}
+input[type=date].inp,input[type=time].inp{display:block;text-align:left;cursor:pointer}
+input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-date-and-time-value{text-align:left}
+.inp:focus{border-color:var(--b);box-shadow:0 0 0 3px rgba(27,70,229,.12)}
+:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+.inp:focus-visible,.seg button:focus-visible{outline:0}
+@media (pointer:coarse){input,select,textarea,.inp,.mp-search input,.search input{font-size:16px}}
+.fl small{font-weight:500;color:var(--li);margin-left:4px}
+.field[disabled]{opacity:.5;cursor:not-allowed}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+
+/* --- typy bicyklov (5 vrátane Dirt / BMX) --- */
+.types.t5{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.types button span{display:block;line-height:1.15;text-align:center}
+@media (max-width:420px){.types.t5 button{font-size:10.5px;padding:10px 2px}.types.t5 button svg{width:22px;height:22px}}
+
+/* --- filtre na úvode: všetko viditeľné --- */
+@media (max-width:539px){
+  .filters{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .filters button{padding:9px 4px;font-size:13px;gap:5px}
+  .filters button svg{display:block;width:14px;height:14px}
+}
+
+/* --- kedy: dni + iný dátum --- */
+.days{padding-bottom:2px}
+.datechip{position:relative;flex:0 0 auto;min-width:76px;border:1.5px dashed var(--lbl);background:var(--lb);border-radius:14px;padding:8px 8px;text-align:center;font-size:11px;font-weight:700;color:var(--b);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;overflow:hidden}
+.datechip span{white-space:nowrap}
+.datechip b{display:block;font-size:15px;color:#fff;font-weight:800;white-space:nowrap}
+.datechip.on{border:1.5px solid var(--b);background:var(--b);color:#dfe4fb}
+.datechip input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0;-webkit-appearance:none;appearance:none;font-size:16px}
+.datechip input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.hint{display:flex;gap:8px;align-items:center;margin-top:10px;background:#fff8e6;border:1px solid #f6e2b0;color:#7a5a06;border-radius:12px;padding:9px 12px;font-size:12.5px;font-weight:600;line-height:1.4}
+.hint svg{flex:0 0 auto}
+
+/* --- tempo ako prepínač --- */
+.seg3{display:grid;grid-template-columns:repeat(3,1fr);background:#fff;border:1.5px solid var(--ln);border-radius:14px;padding:4px;gap:4px}
+.seg3 button{border-radius:10px;padding:10px 4px;font-size:13px;font-weight:700;color:var(--mu)}
+.seg3 button.on{background:var(--b);color:#fff}
+
+/* --- podrobnosti (rozbaľovacie) --- */
+.more{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;width:100%;margin-top:18px;padding:13px 14px;border:1.5px solid var(--ln);border-radius:14px;background:#fff;text-align:left}
+.more span{font-size:14px;font-weight:700;color:var(--b)}
+.more small{grid-column:1;font-size:12px;color:var(--mu);margin-top:2px}
+.more .chev{grid-column:2;grid-row:1/span 2;transform:rotate(-90deg);color:var(--li);transition:transform .2s}
+.more.open{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent}
+.more.open span{color:var(--ink)}
+.more.open .chev{transform:rotate(90deg)}
+.more .cnt{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--lb);color:var(--b);font-style:normal;font-size:11.5px;margin-left:4px}
+.morebox{border:1.5px solid var(--ln);border-top:0;border-radius:0 0 14px 14px;background:#fff;padding:0 14px 14px}
+.morebox .fl{margin-top:14px}
+.morebox .inp{background:var(--sf)}
+
+/* --- detail: kalendár, odkaz --- */
+.sub.when{color:var(--tx);font-weight:500}
+.calbtn{display:inline-flex;align-items:center;gap:7px;margin-top:10px;padding:8px 14px;border-radius:999px;background:var(--lb);border:1px solid var(--lbl);color:var(--b);font-size:13px;font-weight:700}
+.linkout{display:flex;align-items:center;gap:12px;margin-top:10px;padding:12px 14px;border:1.5px solid var(--ln);border-radius:14px;background:#fff;color:var(--ink);text-decoration:none}
+.linkout>svg:first-child{color:var(--b);flex:0 0 auto}
+.linkout .grow{min-width:0}
+.linkout b{display:block;font-size:14px}
+.linkout small{display:block;font-size:12px;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linkout>svg:last-child{color:var(--li);flex:0 0 auto}
+.fresh{align-items:flex-start}
+.fresh .fi{font-size:20px;line-height:1.2}
+.fresh-acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.fresh-acts .btn{flex:0 0 auto}
+.calopts{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.calopt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;border:1.5px solid var(--ln);border-radius:16px;background:#fff;color:var(--ink);text-decoration:none}
+.calopt:hover{border-color:var(--lbl);background:var(--lb)}
+.calopt .grow{min-width:0}
+.calopt b{display:block;font-size:15px}
+.calopt small{display:block;font-size:12.5px;color:var(--mu);margin-top:2px}
+.calopt .ci{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:#fff;flex:0 0 auto}
+.calopt .ci svg{width:22px;height:22px}
+.calopt .ci.g{background:#1a73e8}.calopt .ci.apple{background:#11131a}.calopt .ci.o{background:#0f6cbd}
+.datebtn{position:relative;display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px 14px;border:1.5px dashed var(--lbl);border-radius:14px;background:var(--lb);color:var(--b);cursor:pointer;overflow:hidden}
+.datebtn span{display:flex;flex-direction:column;min-width:0}
+.datebtn b{font-size:13.5px;font-weight:700}
+.datebtn small{font-size:12px;color:var(--mu);font-weight:500}
+.datebtn.on{border:1.5px solid var(--b);background:var(--b);color:#fff}
+.datebtn.on small{color:#dfe4fb}
+.datebtn input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0;-webkit-appearance:none;appearance:none;font-size:16px}
+.datebtn input::-webkit-calendar-picker-indicator{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
