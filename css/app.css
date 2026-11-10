@@ -888,3 +888,64 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .dfmt button[disabled]{opacity:.4}
 .bgs.f-post button,.bgs.f-post .bgadd{height:68px}
 .bgadd{flex:0 0 auto;width:54px;height:96px;border-radius:10px;border:2px dashed #c9d3fb;background:var(--lb);color:var(--b);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10.5px;font-weight:700;cursor:pointer}
+
+/* ---------- profil jazdca ---------- */
+.prow{cursor:pointer}
+.prow:hover{background:linear-gradient(90deg,transparent,rgba(27,70,229,.03),transparent)}
+.pacts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.ptypes{display:flex;gap:8px;flex-wrap:wrap}
+.ptypes span{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--ln);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:600;color:var(--tx)}
+.ptypes svg{width:16px;height:16px;color:var(--b)}
+/* ---------- farby trailov ---------- */
+.tdots{display:inline-flex;gap:3px;align-items:center;vertical-align:middle;margin-right:5px}
+.tdots i{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 0 1.5px #fff}
+.grid4 .tdots i{width:13px;height:13px}
+.trails{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.trails button{display:flex;flex-direction:column;align-items:center;gap:3px;border:1.5px solid var(--ln);background:#fff;border-radius:14px;padding:10px 4px 9px;color:var(--tx)}
+.trails button i{width:18px;height:18px;border-radius:50%;display:block}
+.trails button b{font-size:12.5px;color:var(--ink)}
+.trails button small{font-size:10.5px;color:var(--mu)}
+.trails button.on{border-color:var(--b);background:var(--lb);box-shadow:0 0 0 1px var(--b) inset}
+/* ---------- len pozvaní (zaškrtávacie políčko) ---------- */
+.chkrow{display:flex;gap:12px;align-items:flex-start;margin-top:16px;padding:12px 14px;border:1.5px solid var(--ln);border-radius:14px;background:#fff;cursor:pointer}
+.chkrow .box{flex:0 0 auto;width:22px;height:22px;border-radius:6px;border:2px solid #c3c9d6;display:flex;align-items:center;justify-content:center;color:transparent;margin-top:1px}
+.chkrow .box svg{width:14px;height:14px}
+.chkrow.on{border-color:var(--b);background:var(--lb)}
+.chkrow.on .box{background:var(--b);border-color:var(--b);color:#fff}
+.chkrow b{display:block;font-size:14px;color:var(--ink)}
+.chkrow small{display:block;font-size:12.5px;color:var(--mu);margin-top:2px;line-height:1.4}
+/* ---------- upozornenia ---------- */
+.ncard{padding:16px}
+.nhead{display:flex;gap:12px;align-items:center}
+.nico{font-size:26px}
+.nhead b{display:block;font-size:14px;color:var(--ink)}
+.nst{display:block;font-size:12.5px;font-weight:700;color:var(--mu);margin-top:2px}
+.nst.on{color:#16a34a}
+.nst.bad{color:#dc2626}
+.nacts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.nhint{font-size:13px;color:var(--tx);margin:10px 0 0;line-height:1.5}
+.devs .dev{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--ln)}
+.devs .dev b{font-size:13px;color:var(--ink);display:block}
+.devs .dev b small{font-weight:600;color:var(--mu)}
+.devs .dev small{font-size:12px;color:var(--mu)}
+.dot2{width:9px;height:9px;border-radius:50%;background:#c3c9d6;flex:0 0 auto}
+.dot2.ok{background:#16a34a}
+.dot2.bad{background:#dc2626}
+.howto{border:1px solid var(--ln);border-radius:12px;margin-top:8px;background:var(--sf)}
+.howto summary{cursor:pointer;padding:11px 14px;font-weight:700;font-size:14px;color:var(--ink);list-style:none;display:flex;justify-content:space-between}
+.howto summary::-webkit-details-marker{display:none}
+.howto summary::after{content:"＋";color:var(--b)}
+.howto[open] summary::after{content:"−"}
+.howto > :not(summary){margin-left:14px;margin-right:14px}
+.howto .steps{margin-top:0}
+.howto .small-note{margin-bottom:12px}
+.denied{margin-top:12px;background:#fff5f5;border:1px solid #fecaca;border-radius:12px;padding:12px 14px}
+.denied b{display:block;color:#b91c1c;font-size:14px}
+.denied small{display:block;color:var(--tx);font-size:12.5px;margin-top:2px}
+.denied ul{margin:8px 0 10px;padding-left:18px;font-size:12.5px;color:var(--tx);line-height:1.5}
+.denied li{margin:4px 0}
+#notif.flash + .ncard{animation:flash 1.6s ease}
+@keyframes flash{0%,60%{box-shadow:0 0 0 3px var(--b)}100%{box-shadow:none}}
+.ebchip.on{background:var(--b)!important;color:#fff!important;border-color:var(--b)!important}
+.ebchip.on small{color:rgba(255,255,255,.8)}
+#notif{scroll-margin-top:84px}

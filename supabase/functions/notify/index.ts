@@ -1,6 +1,6 @@
 // Upozornenia do mobilu na udalosti v partii – volá ich databáza (trigger cez pg_net) s kľúčom z Vaultu.
 import { admin, json, readJson } from "../_shared/util.ts";
-import { APP, initPush, sameSecret, secrets, sendTo, when } from "../_shared/push.ts";
+import { APP, b64uEncode, encrypt, initPush, sameSecret, secrets, sendTo, when } from "../_shared/push.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 function clip(v: unknown, d: string, n = 60) { const s = String(v ?? "").trim(); return s ? (s.length > n ? s.slice(0, n - 1) + "…" : s) : d; }
@@ -10,8 +10,12 @@ Deno.serve(async (req) => {
   const db = admin();
   const S = await secrets(db);
   if (!S.cron_key || !sameSecret(req.headers.get("x-cron-key") ?? "", S.cron_key)) return json(req, { error: "forbidden" }, 403);
-  if (!initPush(S)) return json(req, { error: "Upozornenia nie sú nastavené." }, 500);
+  if (!(await initPush(S))) return json(req, { error: "Upozornenia nie sú nastavené." }, 500);
   const b = await readJson(req);
+  // kontrola šifrovania priamo na serveri (len s kľúčom z Vaultu)
+  if (b.selftest && typeof b.p256dh === "string" && typeof b.auth === "string") {
+    return json(req, { body: b64uEncode(await encrypt(b.p256dh, b.auth, new TextEncoder().encode("selftest-ok"))) });
+  }
   const user = String(b.user_id ?? "");
   if (!UUID.test(user)) return json(req, { error: "bad user" }, 400);
   const actor = clip(b.actor, "Biker", 40), first = actor.split(" ")[0];

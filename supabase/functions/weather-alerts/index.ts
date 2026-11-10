@@ -7,7 +7,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req) });
   const db = admin();
   const S = await secrets(db);
-  if (!initPush(S)) return json(req, { error: "Upozornenia nie sú nastavené." }, 500);
+  if (!(await initPush(S))) return json(req, { error: "Upozornenia nie sú nastavené." }, 500);
   const body = await readJson(req);
 
   // skúšobné upozornenie pre prihláseného

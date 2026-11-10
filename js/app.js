@@ -44,6 +44,14 @@
   function sz(svg, n) { return svg.replace("<svg", '<svg width="' + n + '" height="' + n + '"'); }
   var TYPES = { cesta: ["Cesta", "road"], gravel: ["Gravel", "gravel"], mtb: ["Horský", "mtb"], ebike: ["E-bike", "ebike"], dirt: ["Dirt / BMX", "bmx"] };
   var PACE = { pohoda: "Pohodové", stredne: "Stredné", rychlo: "Rýchle" };
+  // farby trailov (horský bicykel) – ako značenie v bike parkoch a trail centrách
+  var TRAILS = { green: ["Zelená", "ľahké", "#16a34a"], blue: ["Modrá", "stredné", "#2563eb"], red: ["Červená", "náročné", "#dc2626"], black: ["Čierna", "expert", "#11131a"] };
+  function hasPace(t) { return t === "cesta" || t === "gravel"; } // tempo a trasa len pri ceste a gravel
+  function paceOf(r) { return hasPace(r.type) && r.pace && PACE[r.pace] ? PACE[r.pace] : ""; }
+  function trailsOf(r) { return r.type === "mtb" && r.trails && r.trails.length ? r.trails.filter(function (t) { return TRAILS[t]; }) : []; }
+  function tdots(list) { return '<span class="tdots">' + list.map(function (t) { return '<i style="background:' + TRAILS[t][2] + '" title="' + TRAILS[t][0] + '"></i>'; }).join("") + "</span>"; }
+  function trailText(list) { return list.map(function (t) { return TRAILS[t][0].toLowerCase(); }).join(", "); }
+  function rideStyle(r) { var p = paceOf(r), t = trailsOf(r); return p ? "tempo " + p.toLowerCase() : t.length ? "traily: " + trailText(t) : ""; }
   var RADIUS = 30;
   var VIS = {
     public: ["🌍", "Verejná", "Uvidí ju každý biker do " + RADIUS + " km od stretka a môže sa pridať."],
@@ -262,6 +270,7 @@
       '<form id="onbForm">' +
       '<span class="fl">Meno a priezvisko</span><input class="inp" id="o-name" required maxlength="60" autocomplete="name" placeholder="napr. Martin Novák" value="' + esc(u.display_name || "") + '">' +
       '<div class="two" style="margin-top:4px"><div><span class="fl">Vek</span><input class="inp" id="o-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '"></div><div><span class="fl">Odkiaľ si</span><input class="inp" id="o-city" maxlength="60" placeholder="mesto alebo obec" required value="' + esc(u.city || "") + '"></div></div>' +
+      '<p class="small-note" style="margin:6px 0 0">🔒 Vek a mesto uvidia len tvoji priatelia.</p>' +
       '<p class="small-note" style="margin-top:6px">Vek uvidia kamoši pri jazdách, aby vedeli, s kým idú.</p>' +
       contactFields("o", u) +
       '<p class="small-note" style="margin-top:6px">Uvidia to len prihlásení bikeri – aby ti vedeli napísať napr. pred jazdou.</p>' +
@@ -288,7 +297,7 @@
       (invitedMe(r) ? '<div class="invited" style="margin-bottom:10px">✉️ ' + esc(hname(r.host)) + " ťa pozýva</div>" : "") +
       '<div class="rh">' + pic(r.host) + '<div class="nm">' + hn(r.host) + "<small>" + esc((r.meet.label || "").split(" – ")[0]) + '</small></div><div class="time">' + hm(r.starts_at) + "<small>" + dShort(r.starts_at) + "</small></div></div>" +
       '<div class="rt">' + esc(r.title) + "</div>" +
-      '<div class="meta"><span class="chip b">' + IC[ty[1]] + ty[0] + "</span>" + (vis(r) === "public" ? '<span class="chip pub">🌍 Verejná' + (d != null && r.host !== S.uid ? " · " + (d < 1 ? "pri tebe" : Math.round(d) + " km") : "") + "</span>" : vis(r) === "private" && r.host === S.uid ? '<span class="chip">' + IC.lock + "Len vybraní</span>" : "") + (r.distance_km ? '<span class="chip">' + IC.route + km(r.distance_km) + " km</span>" : "") + (r.elevation_m ? '<span class="chip">' + IC.up + r.elevation_m + " m</span>" : "") + '<span class="chip">' + IC.gauge + PACE[r.pace] + "</span>" + wxChip(r) + "</div>" +
+      '<div class="meta"><span class="chip b">' + IC[ty[1]] + ty[0] + "</span>" + (vis(r) === "public" ? '<span class="chip pub">🌍 Verejná' + (d != null && r.host !== S.uid ? " · " + (d < 1 ? "pri tebe" : Math.round(d) + " km") : "") + "</span>" : vis(r) === "private" && r.host === S.uid ? '<span class="chip">' + IC.lock + "Len vybraní</span>" : "") + (r.distance_km ? '<span class="chip">' + IC.route + km(r.distance_km) + " km</span>" : "") + (r.elevation_m ? '<span class="chip">' + IC.up + r.elevation_m + " m</span>" : "") + (paceOf(r) ? '<span class="chip">' + IC.gauge + paceOf(r) + "</span>" : trailsOf(r).length ? '<span class="chip">' + tdots(trailsOf(r)) + (trailsOf(r).length === 1 ? TRAILS[trailsOf(r)[0]][0] : "traily") + "</span>" : "") + wxChip(r) + "</div>" +
       '<div class="rf"><div class="stack">' + ppl.slice(0, 4).map(function (u) { return pic(u, "s"); }).join("") + "<em>" + (n === 1 ? "zatiaľ len " + (r.host === S.uid ? "ty" : esc(hname(r.host))) : n + " " + (n < 5 ? "idú" : "ide")) + (r.max_people ? " · " + n + "/" + r.max_people : "") + "</em></div>" + btn + "</div></div>";
   }
   function pastCard(r) {
@@ -309,7 +318,7 @@
     var html = topbar(brand()) + '<div class="pad"><h1 class="t">Ahoj ' + esc(S.me.display_name ? S.me.display_name.split(" ")[0] : S.me.ig_username) + ', <span>ideme?</span></h1><p class="sub">' + up.length + " " + (up.length === 1 ? "jazda" : up.length > 1 && up.length < 5 ? "jazdy" : "jázd") + (S.loc ? " v okolí" : " od partie") + " · ty ideš na " + mine + "</p>" +
       '<div class="hero"><svg class="deco" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6"><circle cx="5.5" cy="17" r="3.5"/><circle cx="18.5" cy="17" r="3.5"/><path d="M15 6h2l1.5 11M5.5 17 9 9h7M9 9l3.5 8H18.5"/></svg><b>Ideš jazdiť?</b><p>Daj vedieť partii. Kto má čas, pridá sa.</p><div style="display:flex;gap:8px;flex-wrap:wrap">' +
       (S.tpl.length ? '<button class="btn sm" data-act="repeat" data-i="0">' + sz(IC.repeat, 15) + "Zopakovať „" + esc(S.tpl[0].title.slice(0, 22)) + "“</button>" : "") + '<button class="btn sm" ' + (S.tpl.length ? 'style="background:rgba(255,255,255,.16);color:#fff"' : "") + ' data-act="create">Nová jazda</button></div></div>' +
-      (pushPrompt() ? '<div class="pushcard"><span class="pi">🔔</span><div class="grow"><b>Zapni si upozornenia</b><small>Keď ti niekto pošle žiadosť o priateľstvo, prijme ju alebo ťa zavolá na jazdu, príde ti správa rovno do mobilu.</small><div class="fresh-acts"><button class="btn sm" data-act="push-on">Zapnúť</button><button class="btn sm gh" data-act="push-hide">Teraz nie</button></div></div></div>' : "") +
+      (pushPrompt() ? '<div class="pushcard"><span class="pi">🔔</span><div class="grow"><b>Zapni si upozornenia</b><small>Keď ti niekto pošle žiadosť o priateľstvo, prijme ju alebo ťa zavolá na jazdu, príde ti správa rovno do mobilu.</small><div class="fresh-acts"><button class="btn sm" data-act="push-on">Zapnúť</button><button class="btn sm gh" data-act="push-guide">Návod</button><button class="btn sm gh" data-act="push-hide">Teraz nie</button></div></div></div>' : "") +
       '<div class="filters">' + [["all", "Všetko"]].concat(Object.keys(TYPES).map(function (k) { return [k, TYPES[k][0]]; })).map(function (f) { return '<button data-act="filter" data-f="' + f[0] + '" class="' + (S.filter === f[0] ? "on" : "") + '">' + (f[0] !== "all" ? IC[TYPES[f[0]][1]] : "") + f[1] + "</button>"; }).join("") + "</div>";
     if (!up.length) html += '<div class="empty-state"><i>🚵</i><b>' + (S.fr.friends.length || S.loc ? "Zatiaľ nikto nič neplánuje" : "Pridaj si partiu") + "</b>" +
       (S.loc ? "V okolí " + esc(S.loc.label || "") + " zatiaľ nie je žiadna jazda. Založ prvú verejnú – uvidia ju bikeri do " + RADIUS + " km." : S.fr.friends.length ? "Buď prvý a daj vedieť, kedy ideš." : "Nájdi kamošov podľa mena alebo im pošli pozvánku.") +
@@ -324,15 +333,15 @@
       '<div class="search" style="margin-top:0">' + IC.search + '<input id="q" placeholder="Meno, Instagram alebo Facebook (aspoň 3 písmená)" value="' + esc(S.q) + '" autocomplete="off" autocapitalize="off"></div><div id="qres">' + qResults() + "</div>" +
       '<div class="invite"><div style="flex:1"><b>Pozvi kamoša</b><small>Pošli mu odkaz – po registrácii budete hneď priatelia.</small></div><button class="btn sm" data-act="invite-link">Pozvať</button></div>';
     if (S.fr.incoming.length) html += '<div class="sec-h"><b>Žiadosti</b><small>' + S.fr.incoming.length + '</small></div><div class="card" style="padding:4px 16px">' + S.fr.incoming.map(function (id) {
-      return '<div class="row">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + esc([contactLine(id), prof(id).city].filter(Boolean).join(" · ")) + "</small>" + bikeLine(id) + '</div><button class="btn sm gh" data-act="decline" data-u="' + id + '">✕</button><button class="btn sm" data-act="accept" data-u="' + id + '">Prijať</button></div>'; }).join("") + "</div>";
+      return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + esc([contactLine(id), prof(id).city].filter(Boolean).join(" · ")) + "</small>" + bikeLine(id) + '</div><button class="btn sm gh" data-act="decline" data-u="' + id + '">✕</button><button class="btn sm" data-act="accept" data-u="' + id + '">Prijať</button></div>'; }).join("") + "</div>";
     html += '<div class="sec-h"><b>Priatelia</b><small>' + S.fr.friends.length + "</small></div>";
     if (!S.fr.friends.length) html += '<div class="empty-state"><i>🤝</i><b>Zatiaľ nikoho nemáš</b>Vyhľadaj kamošov hore podľa mena, alebo im pošli pozvánku.</div>';
     else html += '<div class="card" style="padding:4px 16px">' + S.fr.friends.slice().sort(function (a, b) { return hname(a) < hname(b) ? -1 : 1; }).map(function (id) {
       var next = S.rides.filter(function (r) { return r.host === id && !ended(r); })[0], p = prof(id);
-      return '<div class="row">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + (next ? '<span class="live">jazdí ' + dShort(next.starts_at).toLowerCase() + " " + hm(next.starts_at) + "</span>" : esc([contactLine(id), p.city].filter(Boolean).join(" · "))) + "</small>" + bikeLine(id) + "</div>" +
+      return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + (next ? '<span class="live">jazdí ' + dShort(next.starts_at).toLowerCase() + " " + hm(next.starts_at) + "</span>" : esc([contactLine(id), p.city].filter(Boolean).join(" · "))) + "</small>" + bikeLine(id) + "</div>" +
         (next ? '<button class="btn sm gh" data-act="open" data-id="' + next.id + '">Jazda</button>' : "") + contactBtns(id) + "</div>"; }).join("") + "</div>";
     if (S.fr.outgoing.length) html += '<div class="sec-h"><b>Čakajú na potvrdenie</b><small>' + S.fr.outgoing.length + '</small></div><div class="card" style="padding:4px 16px">' + S.fr.outgoing.map(function (id) {
-      return '<div class="row" style="opacity:.7">' + pic(id) + '<div class="grow"><b>' + hn(id) + '</b><small>žiadosť odoslaná</small></div><button class="btn sm gh" data-act="unfriend" data-u="' + id + '">Zrušiť</button></div>'; }).join("") + "</div>";
+      return '<div class="row prow" style="opacity:.7" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + hn(id) + '</b><small>žiadosť odoslaná</small></div><button class="btn sm gh" data-act="unfriend" data-u="' + id + '">Zrušiť</button></div>'; }).join("") + "</div>";
     return html + "</div>";
   }
   function qResults() {
@@ -341,7 +350,7 @@
     return '<div class="card" style="padding:4px 16px;margin-top:10px">' + S.qres.map(function (p) {
       S.P[p.id] = S.P[p.id] || p;
       var st = isFriend(p.id) ? '<span class="chip lb">Priateľ</span>' : S.fr.outgoing.indexOf(p.id) > -1 ? '<span class="chip">Odoslané</span>' : S.fr.incoming.indexOf(p.id) > -1 ? '<button class="btn sm" data-act="accept" data-u="' + p.id + '">Prijať</button>' : '<button class="btn sm" data-act="addfriend" data-u="' + p.id + '">Pridať</button>';
-      return '<div class="row">' + pic(p.id) + '<div class="grow"><b>' + hn(p.id) + "</b><small>" + esc([contactLine(p.id), p.city].filter(Boolean).join(" · ")) + "</small></div>" + st + "</div>"; }).join("") + "</div>";
+      return '<div class="row prow" data-act="person" data-u="' + p.id + '">' + pic(p.id) + '<div class="grow"><b>' + hn(p.id) + "</b><small>" + esc([contactLine(p.id), p.city].filter(Boolean).join(" · ")) + "</small></div>" + st + "</div>"; }).join("") + "</div>";
   }
   function memberNo() { return String(S.uid || "").replace(/-/g, "").slice(0, 8).toUpperCase(); }
   function vClub() {
@@ -373,27 +382,51 @@
       (fbUrl(S.uid) ? '<a class="btn sm gh" href="' + esc(fbUrl(S.uid)) + '" target="_blank" rel="noopener">' + sz(IC.fb, 14) + esc(fbLabel(S.uid)) + "</a>" : "") + "</div></div>";
     if (S.editing) html += '<form class="card" id="editForm" style="margin-top:14px"><span class="fl" style="margin-top:0">Meno a priezvisko</span><input class="inp" id="e-name" required maxlength="60" value="' + esc(u.display_name || "") + '">' +
       '<div class="two"><div><span class="fl">Vek</span><input class="inp" id="e-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '"></div><div><span class="fl">Odkiaľ si</span><input class="inp" id="e-city" maxlength="60" placeholder="mesto alebo obec" value="' + esc(u.city || "") + '"></div></div>' +
+      '<p class="small-note" style="margin:6px 0 0">🔒 Vek a mesto vidia len tvoji priatelia.</p>' +
       contactFields("e", u) +
       '<span class="fl">Na čom jazdíš?</span><div class="opts" id="e-types">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-act="toggle-on" data-v="' + k + '" class="' + ((u.bike_types || []).indexOf(k) > -1 ? "on" : "") + '">' + IC[TYPES[k][1]] + TYPES[k][0] + "</button>"; }).join("") + "</div>" +
       '<div style="display:flex;gap:8px;margin-top:16px"><button class="btn gh" type="button" data-act="edit">Zrušiť</button><button class="btn" style="flex:1" type="submit">Uložiť</button></div></form>';
     html += vMyBikes();
+    html += vNotifCard();
     html += '<div class="sec-h"><b>Moje skratky</b><small>komu posielam jazdy</small></div>' + (S.sc.length ? '<div class="card" style="padding:4px 16px">' + S.sc.map(function (s) {
       return '<div class="row"><span style="font-size:22px;width:38px;text-align:center">' + esc(s.emoji) + '</span><div class="grow"><b>' + esc(s.name) + "</b><small>" + s.members.map(function (m) { return esc(hname(m)); }).join(", ") + '</small></div><button class="btn sm gh" data-act="del-sc" data-id="' + s.id + '">Zmazať</button></div>'; }).join("") + "</div>" : '<p class="info" style="text-align:left">Skratku si vytvoríš pri posielaní jazdy – vyber kamošov a daj „Nová skratka“.</p>') +
       '<div class="shop"><span style="font-size:24px">🛒</span><div class="grow"><b>E-shop elitebiker.sk</b><small>Bicykle, diely, výbava a servis</small></div><a class="btn sm" href="' + esc(C.ESHOP_URL) + '" target="_blank" rel="noopener">Otvoriť →</a></div>' +
-      '<div class="card" style="padding:4px 16px;margin-top:14px"><div class="kv"><span>Ochrana súkromia</span><b><a class="link-plain" href="privacy.html" target="_blank">Prečítať</a></b></div><div class="kv"><span>Upozornenia do mobilu <small class="em">' + (PUSH.state === "on" ? 'zapnuté na tomto zariadení · <button class="link-plain" data-act="push-test">vyskúšať</button>' : PUSH.state === "denied" ? "zakázané v prehliadači – povoľ ich v nastaveniach stránky" : "žiadosti, pozvánky na jazdy, zlé počasie") + '</small></span><b>' + (PUSH.state === "on" ? '<button class="link-plain" data-act="push-off">Vypnúť</button>' : '<button class="link-plain" data-act="push-on">Zapnúť</button>') + '</b></div><div class="kv"><span>Heslo</span><b><button class="link-plain" data-act="pw">' + (api.hasPassword() ? "Zmeniť" : "Nastaviť") + '</button></b></div><div class="kv"><span>Účet' + (api.email && api.email() ? ' <small class="em">' + esc(api.email()) + "</small>" : "") + '</span><b><button class="link-plain" data-act="logout">Odhlásiť sa</button></b></div><div class="kv"><span>Zmazať účet a všetky údaje</span><b><button class="link-plain danger" data-act="delete-acc">Zmazať</button></b></div></div>' +
+      '<div class="card" style="padding:4px 16px;margin-top:14px"><div class="kv"><span>Ochrana súkromia</span><b><a class="link-plain" href="privacy.html" target="_blank">Prečítať</a></b></div><div class="kv"><span>Heslo</span><b><button class="link-plain" data-act="pw">' + (api.hasPassword() ? "Zmeniť" : "Nastaviť") + '</button></b></div><div class="kv"><span>Účet' + (api.email && api.email() ? ' <small class="em">' + esc(api.email()) + "</small>" : "") + '</span><b><button class="link-plain" data-act="logout">Odhlásiť sa</button></b></div><div class="kv"><span>Zmazať účet a všetky údaje</span><b><button class="link-plain danger" data-act="delete-acc">Zmazať</button></b></div></div>' +
       (S.admin ? '<a class="admlink" href="admin.html">' + sz(IC.lock, 18) + '<span class="grow"><b>Administrácia</b><small>používatelia, body, verejné jazdy</small></span>→</a>' : "") +
       '<p class="small-note">🔒 Spojenie je šifrované (HTTPS), heslo je uložené len ako bezpečný odtlačok a tvoje údaje vidia len ľudia, s ktorými jazdíš.</p>' +
       (api.mode === "demo" ? '<p class="small-note">Skúšobný režim – údaje sú len v tomto prehliadači.</p>' : "") + "</div>";
     return html;
   }
 
+  // profil iného jazdca – priateľ vidí všetko, čo vyplnil; ostatní len meno, fotku, kontakt a bicykle
+  function vPerson(id) {
+    var p = prof(id), fr = isFriend(id), bikes = bikesOf(id), types = (p.bike_types || []).filter(function (k) { return TYPES[k]; });
+    var info = [p.age ? p.age + " r." : "", p.city].filter(Boolean).join(" · ");
+    var since = p.created_at ? new Date(p.created_at).toLocaleDateString("sk-SK", { month: "long", year: "numeric" }) : "";
+    var next = S.rides.filter(function (r) { return r.host === id && !ended(r); })[0];
+    var rel = fr ? '<span class="chip lb">🤝 V tvojej partii</span>' : S.fr.incoming.indexOf(id) > -1 ? '<button class="btn sm" data-act="accept" data-u="' + id + '">Prijať žiadosť</button>' :
+      S.fr.outgoing.indexOf(id) > -1 ? '<span class="chip">Žiadosť odoslaná</span>' : '<button class="btn sm" data-act="addfriend" data-u="' + id + '">' + sz(IC.plus, 14) + "Pridať do partie</button>";
+    return '<div class="sh-top"><button class="icb" data-act="closem" aria-label="Zavrieť">' + IC.close + "</button><b>Profil jazdca</b></div><div class=\"pad\">" +
+      '<div class="prof">' + pic(id, "lg") + "<h2>" + esc(hname(id)) + "</h2>" + (info ? '<p class="sub">' + esc(info) + "</p>" : "") +
+      '<div class="pacts">' + rel +
+      (igUrl(id) ? '<a class="btn sm gh" href="' + esc(igUrl(id)) + '" target="_blank" rel="noopener">' + sz(IC.ig, 14) + "@" + esc(p.ig_username) + "</a>" : "") +
+      (fbUrl(id) ? '<a class="btn sm gh" href="' + esc(fbUrl(id)) + '" target="_blank" rel="noopener">' + sz(IC.fb, 14) + esc(fbLabel(id)) + "</a>" : "") + "</div></div>" +
+      (!fr ? '<p class="info">🔒 Vek a mesto uvidíš, keď budete v partii.</p>' : "") +
+      (types.length ? '<div class="sec-h"><b>Na čom jazdí</b></div><div class="ptypes">' + types.map(function (k) { return "<span>" + IC[TYPES[k][1]] + TYPES[k][0] + "</span>"; }).join("") + "</div>" : "") +
+      (bikes.length ? '<div class="sec-h"><b>Bicykle</b><small>' + bikes.length + '</small></div><div class="card" style="padding:4px 16px">' + bikes.map(function (b) {
+        return '<div class="row"><span class="bkimg">' + bikeThumb(b) + '</span><div class="grow"><b class="wrap2">' + esc(b.name) + "</b><small>" + (b.url ? '<a class="link-plain" href="' + esc(b.url) + '" target="_blank" rel="noopener">pozrieť na elitebiker.sk ↗</a>' : "vlastný bicykel") + "</small></div></div>"; }).join("") + "</div>" : "") +
+      (next ? '<div class="sec-h"><b>Najbližšia jazda</b></div><button type="button" class="field set" data-act="person-ride" data-id="' + next.id + '"><span class="ic">' + IC[(TYPES[next.type] || TYPES.mtb)[1]] + '</span><div class="grow"><b>' + esc(next.title) + "</b><small>" + esc(whenText(next)) + "</small></div></button>" : "") +
+      (since ? '<p class="small-note" style="text-align:center;margin-top:18px">V EliteBiker Ride od: ' + esc(since) + "</p>" : "") + "</div>";
+  }
+
+  function modalAfterFriend() { var m = $("modal"); if (!m.classList.contains("open")) return; if (S.person && m.querySelector(".pacts")) openModal(vPerson(S.person)); else openModal(vNotif()); }
   function vMyBikes() {
     var my = bikesOf(S.uid), add = '<span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.plus, 18) + "</span>";
     return '<div class="sec-h"><b>Moje bicykle</b><small>' + (my.length ? my.length + " z 5" : "uvidia ich kamoši") + '</small></div><div class="card" style="padding:4px 16px">' +
       my.map(function (b) { return '<div class="row"><span class="bkimg">' + bikeThumb(b) + '</span><div class="grow"><b class="wrap2">' + esc(b.name) + "</b><small>" + (b.url ? '<a class="link-plain" href="' + esc(b.url) + '" target="_blank" rel="noopener">z ponuky elitebiker.sk ↗</a>' : "vlastný bicykel") + '</small></div><button class="btn sm gh" data-act="bike-del" data-id="' + b.id + '" aria-label="Odstrániť bicykel">✕</button></div>'; }).join("") +
       (my.length < 5 ? '<button type="button" class="row rowbtn" data-act="bike-new">' + add + '<span class="grow"><b style="color:var(--b)">Pridať bicykel</b><small>z ponuky elitebiker.sk alebo vlastný</small></span></button>' : "") + "</div>";
   }
-  var BK = { q: "", cat: null };
+  var BK = { q: "", cat: null, eb: false };
   function vBike() {
     return '<div class="sh-top"><button class="icb" data-act="closem" aria-label="Zavrieť">' + IC.close + '</button><b>Pridať bicykel</b></div><div class="pad">' +
       '<div class="search" style="margin-top:0">' + IC.search + '<input id="bq" placeholder="Hľadaj v ponuke – napr. Marin Rift Zone" autocomplete="off" autocapitalize="off" value="' + esc(BK.q) + '"></div>' +
@@ -405,21 +438,23 @@
   function bikeResults() {
     if (!BK.cat) return '<div class="loading">Načítavam ponuku elitebiker.sk…</div>';
     if (!BK.cat.length) return '<p class="info" style="text-align:left">Ponuku sa teraz nepodarilo načítať – napíš názov bicykla nižšie.</p>';
-    var words = nrm(BK.q).split(/\s+/).filter(Boolean);
-    if (!words.length) {
+    var words = nrm(BK.q).split(/\s+/).filter(Boolean), nEb = BK.cat.filter(function (b) { return b.ebike; }).length;
+    var ebChip = nEb ? '<button type="button" data-act="bike-eb" class="ebchip' + (BK.eb ? " on" : "") + '">⚡ Elektrobicykle <small class="cnt">' + nEb + "</small>" + (BK.eb ? " ✕" : "") + "</button>" : "";
+    if (!words.length && !BK.eb) {
       var cnt = {}; BK.cat.forEach(function (b) { if (b.brand) cnt[b.brand] = (cnt[b.brand] || 0) + 1; });
       var brands = Object.keys(cnt).filter(function (b) { return cnt[b] >= 3; }).sort(function (a, b) { return cnt[b] - cnt[a]; }).slice(0, 8);
       return '<p class="small-note" style="margin:12px 0 8px">' + BK.cat.length + " bicyklov v ponuke elitebiker.sk – vyber značku alebo napíš model.</p>" +
-        '<div class="opts">' + brands.map(function (b) { return '<button type="button" data-act="bike-brand" data-v="' + esc(b) + '">' + esc(b) + ' <small class="cnt">' + cnt[b] + "</small></button>"; }).join("") + "</div>";
+        '<div class="opts">' + ebChip + brands.map(function (b) { return '<button type="button" data-act="bike-brand" data-v="' + esc(b) + '">' + esc(b) + ' <small class="cnt">' + cnt[b] + "</small></button>"; }).join("") + "</div>";
     }
-    var hits = BK.cat.filter(function (b) { var n = b._n || (b._n = nrm(b.name)); return words.every(function (w) { return n.indexOf(w) > -1; }); });
-    if (!hits.length) return '<p class="info" style="text-align:left">V ponuke sme „' + esc(BK.q) + "“ nenašli – pridaj ho nižšie vlastným názvom.</p>";
-    return '<div class="card" style="padding:2px 12px;margin-top:10px">' + hits.slice(0, 40).map(function (b) {
-      return '<button type="button" class="row rowbtn" data-act="bike-add" data-c="' + b.id + '"><span class="bkimg">' + bikeThumb(b) + '</span><span class="grow"><b class="wrap2">' + esc(b.name) + "</b><small>" + esc(b.brand || "") + '</small></span><span class="chip lb">Pridať</span></button>'; }).join("") + "</div>" +
+    var hits = BK.cat.filter(function (b) { var n = b._n || (b._n = nrm(b.name)); return (!BK.eb || b.ebike) && words.every(function (w) { return n.indexOf(w) > -1; }); });
+    var head = BK.eb ? '<div class="opts" style="margin-top:10px">' + ebChip + "</div>" : "";
+    if (!hits.length) return head + '<p class="info" style="text-align:left">V ponuke sme „' + esc(BK.q) + "“ nenašli – pridaj ho nižšie vlastným názvom.</p>";
+    return head + '<div class="card" style="padding:2px 12px;margin-top:10px">' + hits.slice(0, 40).map(function (b) {
+      return '<button type="button" class="row rowbtn" data-act="bike-add" data-c="' + b.id + '"><span class="bkimg">' + bikeThumb(b) + '</span><span class="grow"><b class="wrap2">' + esc(b.name) + "</b><small>" + esc(b.brand || "") + (b.ebike ? " · ⚡ elektrobicykel" : "") + '</small></span><span class="chip lb">Pridať</span></button>'; }).join("") + "</div>" +
       (hits.length > 40 ? '<p class="small-note">Zobrazujem 40 z ' + hits.length + " – spresni hľadanie.</p>" : "");
   }
   function openBike() {
-    BK.q = ""; openModal(vBike());
+    BK.q = ""; BK.eb = false; openModal(vBike());
     var q = $("bq"), f = $("bikeOwn");
     q.oninput = function () { BK.q = q.value; var el = $("bres"); if (el) el.innerHTML = bikeResults(); };
     f.onsubmit = function (e) {
@@ -448,6 +483,7 @@
     if (!S.me) return;
     var v = $("view"), y = v.scrollTop;
     v.innerHTML = { feed: vFeed, friends: vFriends, club: vClub, profile: vProfile }[S.tab]();
+    if (S.tab === "profile") setTimeout(loadDevices, 0);
     setTimeout(loadWeather, 0);
     if (keep) v.scrollTop = y;
     renderNav();
@@ -499,7 +535,7 @@
       '<h1 class="t" style="margin-top:10px;font-size:21px">' + esc(r.title) + '</h1><p class="sub when">' + esc(whenText(r)) + "</p>" +
       (ended(r) ? "" : '<button class="calbtn" data-act="cal" data-id="' + r.id + '">' + sz(IC.cal, 16) + "Pridať do kalendára</button>") +
       '<div class="field set" style="margin-top:10px;cursor:default"><span class="ic">' + IC.pin + '</span><div class="grow"><b>Stretko</b><small>' + esc(r.meet.label) + "</small></div></div>" +
-      '<div class="grid4"><div><b>' + (r.distance_km ? km(r.distance_km) : "–") + "</b><small>km</small></div><div><b>" + (r.elevation_m || "–") + "</b><small>m stúp.</small></div><div><b>" + PACE[r.pace] + '</b><small>tempo</small></div><div><b id="dCount">' + r.participants.length + (r.max_people ? "/" + r.max_people : "") + "</b><small>" + (r.max_people ? "miest" : ludi(r.participants.length)) + "</small></div></div>" +
+      '<div class="grid4"><div><b>' + (r.distance_km ? km(r.distance_km) : "–") + "</b><small>km</small></div><div><b>" + (r.elevation_m || "–") + "</b><small>m stúp.</small></div><div>" + (paceOf(r) ? "<b>" + paceOf(r) + "</b><small>tempo</small>" : trailsOf(r).length ? "<b>" + tdots(trailsOf(r)) + "</b><small>" + (trailsOf(r).length === 1 ? TRAILS[trailsOf(r)[0]][0].toLowerCase() + " · " + TRAILS[trailsOf(r)[0]][1] : "traily") + "</small>" : "<b>" + (TYPES[r.type] || TYPES.mtb)[0] + "</b><small>bicykel</small>") + '</div><div><b id="dCount">' + r.participants.length + (r.max_people ? "/" + r.max_people : "") + "</b><small>" + (r.max_people ? "miest" : ludi(r.participants.length)) + "</small></div></div>" +
       (r.note ? '<div class="note">' + esc(r.note) + "</div>" : "") +
       (r.link_url ? '<a class="linkout" href="' + esc(r.link_url) + '" target="_blank" rel="noopener nofollow">' + sz(IC.link, 16) + '<span class="grow"><b>Trasa / info o akcii</b><small>' + esc(r.link_url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) + "</small></span>" + sz(IC.back, 14).replace("<svg", '<svg style="transform:rotate(180deg)"') + "</a>" : "") +
       '<div id="dWx"></div><div id="dPhotos"></div><div id="dPeople"></div><div id="dChat"></div></div><div class="sticky-act" id="dActs"></div>');
@@ -528,7 +564,7 @@
     $("dCount") && ($("dCount").textContent = r.participants.length + (r.max_people ? "/" + r.max_people : ""));
     $("dPeople").innerHTML = (S.fresh === r.id && canInv ? '<div class="fresh"><span class="fi">✅</span><div class="grow"><b>Jazda je uložená</b><small>Pošli odkaz aj kamošom bez appky a pridaj si ju do kalendára.</small><div class="fresh-acts"><button class="btn sm" data-act="ride-link" data-id="' + r.id + '">' + sz(IC.link, 14) + 'Poslať odkaz</button><button class="btn sm gh" data-act="cal" data-id="' + r.id + '">' + sz(IC.cal, 14) + "Do kalendára</button></div></div></div>" : "") +
       '<div class="sec-h"><b>Kto ide</b><small>' + r.participants.length + (pend.length && r.host === S.uid ? " · " + pend.length + " pozvaní" : "") + '</small></div><div class="card" style="padding:4px 16px">' +
-      r.participants.map(function (id) { return '<div class="row">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(contactLine(id)) + "</small>" + bikeLine(id) + "</div>" + (id !== S.uid ? contactBtns(id) : "") + "</div>"; }).join("") +
+      r.participants.map(function (id) { return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(contactLine(id)) + "</small>" + bikeLine(id) + "</div>" + (id !== S.uid ? contactBtns(id) : "") + "</div>"; }).join("") +
       (r.host === S.uid ? pend.map(function (id) { return '<div class="row" style="opacity:.6">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>pozvaný · zatiaľ sa nepridal</small></div></div>"; }).join("") : "") +
       (canInv ? '<div class="row" style="cursor:pointer" data-act="invmodal" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.plus, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať kamošov</b><small>z tvojej partie</small></div></div>' +
         '<div class="row" style="cursor:pointer" data-act="ride-link" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.link, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať odkazom</b><small>aj tých, čo ešte nemajú appku</small></div></div>' : "") + "</div>";
@@ -578,7 +614,7 @@
   function isIOS() { return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
   function utcStamp(d) { return new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); }
   function calText(r) {
-    var ty = TYPES[r.type] || TYPES.mtb, bits = [ty[0], "tempo " + PACE[r.pace].toLowerCase()];
+    var ty = TYPES[r.type] || TYPES.mtb, bits = [ty[0]]; if (rideStyle(r)) bits.push(rideStyle(r));
     if (r.distance_km) bits.push(km(r.distance_km) + " km");
     if (r.elevation_m) bits.push(r.elevation_m + " m stúpania");
     return bits.join(" · ") + (r.note ? "\n\n" + r.note : "") + (r.link_url ? "\n\n" + r.link_url : "") + "\n\nDetail jazdy a chat: " + shareUrl("#jazda-" + r.id);
@@ -722,37 +758,118 @@
   var PUSH = { ok: "serviceWorker" in navigator && "PushManager" in window && "Notification" in window, state: "off", sub: null };
   function standalone() { return !!(navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches)); }
   function b64u(s) { var p = "=".repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+  function deviceName() {
+    var ua = navigator.userAgent, os = /iPhone/.test(ua) ? "iPhone" : /iPad/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : "Počítač";
+    var br = /Edg\//.test(ua) ? "Edge" : /SamsungBrowser/.test(ua) ? "Samsung Internet" : /Firefox|FxiOS/.test(ua) ? "Firefox" : /Chrome|CriOS/.test(ua) ? "Chrome" : /Safari/.test(ua) ? "Safari" : "";
+    return os + (standalone() ? " · appka na ploche" : br ? " · " + br : "");
+  }
+  function wantPush(v) { try { if (v != null) localStorage.setItem("eb_push_want", v ? "1" : "0"); return localStorage.getItem("eb_push_want") === "1"; } catch (e) { return false; } }
+  function subscribe(reg) { return reg.pushManager.getSubscription().then(function (s) { return s || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(C.VAPID_PUBLIC) }); }); }
   function pushInit() {
     if (api.mode === "demo") { PUSH.ok = true; PUSH.ready = true; return; }
     if (!PUSH.ok) { PUSH.ready = true; return; }
-    navigator.serviceWorker.register("sw.js").then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+    navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
+      // ak je povolenie dané, ale prihlásenie na upozornenia sa stratilo (nová appka na ploche, iný účet), obnovíme ho bez pýtania
+      return reg.pushManager.getSubscription().then(function (sub) { return sub || (Notification.permission === "granted" && wantPush() ? subscribe(reg).catch(function () { return null; }) : null); });
+    }).then(function (sub) {
       PUSH.sub = sub; PUSH.ready = true; PUSH.state = sub ? "on" : (Notification.permission === "denied" ? "denied" : "off");
-      if (sub) api.pushSave(sub).catch(function () {});
+      if (sub) api.pushSave(sub, deviceName()).catch(function () {});
       render(true); renderWx();
     }).catch(function () { PUSH.ready = true; });
   }
+  function pushTest(quiet) {
+    return api.pushTest().then(function (d) {
+      S.devs = null; if (S.tab === "profile") loadDevices();
+      if (d && d.sent) { if (!quiet) toast("Skúšobné upozornenie je na ceste 🔔 Ak nepríde do minúty, pozri stav nižšie."); }
+      else toast("Server nenašiel tvoje zariadenie. Vypni a znova zapni upozornenia.");
+    }).catch(err);
+  }
   function pushOn() {
-    if (api.mode === "demo") { api.pushSave().then(function () { PUSH.state = "on"; toast("Upozornenia zapnuté 🔔 Dáme ti vedieť o žiadostiach, pozvánkach aj zlom počasí."); render(true); renderWx(); }); return; }
+    if (api.mode === "demo") { api.pushSave(null, deviceName()).then(function () { PUSH.state = "on"; S.devs = null; toast("Upozornenia zapnuté 🔔 Dáme ti vedieť o žiadostiach, pozvánkach aj zlom počasí."); render(true); renderWx(); }); return; }
     if (isIOS() && !standalone()) { openModal(vInstall()); return; }
-    if (!PUSH.ok) { toast("Tento prehliadač upozornenia nepodporuje. Skús Chrome, Edge, Firefox alebo Safari."); return; }
+    if (!PUSH.ok) { toast("Tento prehliadač upozornenia nepodporuje. Otvor EB Ride v Chrome alebo Safari."); return; }
+    if (Notification.permission === "denied") { PUSH.state = "denied"; goGuide(); return; }
     var ask = Notification.requestPermission();
     Promise.resolve(ask).then(function (perm) {
-      if (perm !== "granted") { PUSH.state = "denied"; toast("Upozornenia sú zakázané. Povoľ ich v nastaveniach prehliadača pre túto stránku."); return; }
-      return navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; }).then(function (reg) {
-        return reg.pushManager.getSubscription().then(function (s) { return s || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u(C.VAPID_PUBLIC) }); });
-      }).then(function (sub) { return api.pushSave(sub).then(function () { PUSH.sub = sub; PUSH.state = "on"; toast("Upozornenia zapnuté 🔔 Dáme ti vedieť o žiadostiach, pozvánkach aj zlom počasí."); }); });
+      if (perm !== "granted") { PUSH.state = perm === "denied" ? "denied" : "off"; if (perm === "denied") goGuide(); else toast("Upozornenia nie sú povolené. Skús to znova a vyber Povoliť."); return; }
+      return navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; }).then(subscribe).then(function (sub) {
+        return api.pushSave(sub, deviceName()).then(function () {
+          PUSH.sub = sub; PUSH.state = "on"; wantPush(true); S.devs = null;
+          toast("Upozornenia zapnuté 🔔 Posielam skúšobné…");
+          setTimeout(function () { pushTest(true); }, 600);
+        });
+      });
     }).catch(err).then(function () { render(true); renderWx(); });
   }
   function pushOff() {
-    var sub = PUSH.sub, done = function () { PUSH.sub = null; PUSH.state = "off"; toast("Upozornenia vypnuté."); render(true); renderWx(); };
+    var sub = PUSH.sub, done = function () { PUSH.sub = null; PUSH.state = "off"; wantPush(false); S.devs = null; toast("Upozornenia vypnuté."); render(true); renderWx(); };
     if (api.mode === "demo" || !sub) return api.pushDelete(sub && sub.endpoint).then(done, done);
     api.pushDelete(sub.endpoint).catch(function () {}).then(function () { return sub.unsubscribe(); }).catch(function () {}).then(done);
+  }
+  // „Návod“ = preklik do Profilu priamo na nastavenie upozornení
+  function goGuide() {
+    closeModal(); if ($("sheet").classList.contains("open")) closeSheet();
+    S.tab = "profile"; S.editing = false; render();
+    setTimeout(function () { var el = $("notif"); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("flash"); setTimeout(function () { el.classList.remove("flash"); }, 1600); } }, 60);
+  }
+  var INSTALL = { evt: null };
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); INSTALL.evt = e; if (S.me && S.tab === "profile") render(true); });
+  window.addEventListener("appinstalled", function () { INSTALL.evt = null; toast("EB Ride je na ploche 📱 Otvor ho z plochy."); });
+  function installNow() {
+    var e = INSTALL.evt; if (!e) return;
+    e.prompt(); (e.userChoice || Promise.resolve()).then(function () { INSTALL.evt = null; render(true); });
+  }
+  function platform() { return isIOS() ? "ios" : /Android/i.test(navigator.userAgent) ? "android" : "pc"; }
+  function loadDevices() {
+    var el = $("pdev"); if (!el || !api.pushDevices) return;
+    if (S.devs && Date.now() - S.devs.at < 30e3) { el.innerHTML = devList(S.devs.list); return; }
+    api.pushDevices().then(function (list) { S.devs = { at: Date.now(), list: list }; var e2 = $("pdev"); if (e2) e2.innerHTML = devList(list); });
+  }
+  function devList(list) {
+    if (!list || !list.length) return '<p class="small-note" style="margin:10px 0 0">Zatiaľ nemáš upozornenia zapnuté na žiadnom zariadení.</p>';
+    var mine = PUSH.sub && PUSH.sub.endpoint;
+    return '<div class="devs"><small class="fl" style="margin:12px 0 4px">Zariadenia s upozorneniami</small>' + list.map(function (d) {
+      var ok = d.last_status >= 200 && d.last_status < 300, at = d.last_at ? new Date(d.last_at).toLocaleString("sk-SK", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+      var st = d.last_status == null ? "zatiaľ nič neposlané" : ok ? "posledné odoslané " + at : "nedoručené (" + d.last_status + ") " + at;
+      return '<div class="dev"><span class="dot2 ' + (d.last_status == null ? "" : ok ? "ok" : "bad") + '"></span><div class="grow"><b>' + esc(d.device || "Zariadenie") + (d.endpoint === mine || api.mode === "demo" ? " <small>(toto)</small>" : "") + "</b><small>" + esc(st) + "</small></div></div>";
+    }).join("") + "</div>";
+  }
+  function stepsIOS() {
+    return '<ol class="steps"><li>Otvor <b>elitebikersk.github.io/elitebiker-ride</b> v <b>Safari</b> (nie v Instagrame ani Facebooku)</li>' +
+      '<li>Dole ťukni na <b>Zdieľať</b> <span class="kbd">⬆︎</span> (v novom iOS najprv <b>⋯</b>)</li><li>Vyber <b>Pridať na plochu</b> a potvrď <b>Pridať</b></li>' +
+      '<li>Otvor <b>EB Ride</b> z plochy, ťukni na <b>Zapnúť upozornenia</b> a daj <b>Povoliť</b></li></ol><p class="small-note">Funguje od iOS 16.4. Appka z plochy sa otvára na celú obrazovku ako normálna aplikácia.</p>';
+  }
+  function stepsAndroid() {
+    return (INSTALL.evt ? '<button class="btn sm" data-act="install" style="margin:6px 0 8px">' + sz(IC.plus, 14) + "Pridať EB Ride na plochu</button>" : "") +
+      '<ol class="steps"><li>Otvor stránku v <b>Chrome</b></li><li>Vpravo hore ťukni na <b>⋮</b> → <b>Pridať na plochu</b> (alebo <b>Inštalovať aplikáciu</b>) → <b>Inštalovať</b></li>' +
+      '<li>Otvor <b>EB Ride</b> z plochy, ťukni na <b>Zapnúť upozornenia</b> a daj <b>Povoliť</b></li></ol><p class="small-note">Na Androide fungujú upozornenia aj priamo v Chrome – ikonka na ploche je len pohodlnejšia.</p>';
+  }
+  function stepsDenied() {
+    return '<div class="denied"><b>Upozornenia sú zakázané</b><small>Prehliadač ti nedovolí znova sa opýtať – zapni ich raz v nastaveniach:</small><ul>' +
+      "<li><b>iPhone:</b> Nastavenia → Upozornenia → <b>EB Ride</b> → Povoliť upozornenia</li>" +
+      "<li><b>Android:</b> podrž ikonku EB Ride → Informácie o aplikácii → Upozornenia → zapnúť. Alebo v Chrome: ⋮ → Nastavenia → Nastavenia webu → Upozornenia → elitebikersk.github.io → Povoliť</li>" +
+      "<li><b>Počítač:</b> klikni na ikonku vľavo od adresy stránky → Upozornenia → Povoliť</li></ul>" +
+      '<button class="btn sm" data-act="push-on">Už som povolil – skúsiť znova</button></div>';
+  }
+  function vNotifCard() {
+    var st = PUSH.state, plat = platform(), iosTab = plat === "ios" && !standalone();
+    var status = st === "on" ? '<span class="nst on">● Zapnuté na tomto zariadení</span>' : st === "denied" ? '<span class="nst bad">● Zakázané v nastaveniach</span>' : '<span class="nst">● Vypnuté</span>';
+    var main = st === "on" ? '<div class="nacts"><button class="btn sm" data-act="push-test">' + sz(IC.bell, 14) + 'Poslať skúšobné</button><button class="btn sm gh" data-act="push-off">Vypnúť</button></div>'
+      : st === "denied" ? stepsDenied()
+      : iosTab ? '<p class="nhint">Na iPhone fungujú upozornenia len z appky na ploche – postup je nižšie (10 sekúnd).</p>'
+      : '<button class="btn full" data-act="push-on" style="margin-top:10px">' + sz(IC.bell, 16) + "Zapnúť upozornenia</button>";
+    var open = function (k) { return (plat === k || (plat === "pc" && st !== "on")) && st !== "on" ? " open" : ""; };
+    return '<div class="sec-h" id="notif"><b>Upozornenia do mobilu</b><small>' + (st === "on" ? "zapnuté" : "odporúčame") + '</small></div><div class="card ncard">' +
+      '<div class="nhead"><span class="nico">🔔</span><div class="grow"><b>Žiadosti, pozvánky na jazdy, zlé počasie</b>' + status + "</div></div>" + main +
+      '<div id="pdev"></div>' +
+      '<div class="sec-h" style="margin-top:14px"><b>Ako pridať EB Ride na plochu</b></div>' +
+      '<details class="howto"' + open("ios") + "><summary>📱 iPhone (Safari)</summary>" + stepsIOS() + "</details>" +
+      '<details class="howto"' + open("android") + "><summary>🤖 Android (Chrome)</summary>" + stepsAndroid() + "</details></div>";
   }
   function vInstall() {
     return '<div class="sh-top"><button class="icb" data-act="closem" aria-label="Zavrieť">' + IC.close + '</button><b>Upozornenia na iPhone</b></div><div class="pad">' +
       '<p class="sub" style="margin-bottom:14px">Na iPhone posiela Safari upozornenia (žiadosti, pozvánky na jazdy, počasie) len appkám pridaným na plochu. Zaberie to 10 sekúnd:</p>' +
-      '<ol class="steps"><li>Dole v Safari ťukni na <b>Zdieľať</b> <span class="kbd">⬆︎</span></li><li>Vyber <b>Pridať na plochu</b></li><li>Otvor <b>EB Ride</b> z plochy a ťukni znova na <b>Zapnúť upozornenia</b></li></ol>' +
-      '<p class="info">Appka z plochy sa otvára na celú obrazovku – ako normálna aplikácia.</p></div>';
+      stepsIOS() + "</div>";
   }
 
   /* ---------------- EliteBiker dizajn na zdieľanie (fotka + štatistiky, trasa, partia, nálepka) ---------------- */
@@ -1046,17 +1163,15 @@
     }).catch(function (e) { closeModal(); err(e); });
   }
   // kam sa dá odkaz poslať: [kľúč, názov, farba, kedy zobraziť]
+  // poradie podľa Martina; všade sa otvorí appka s výberom, komu poslať – stačí napísať meno
   var SHARE = [
-    ["wa", "WhatsApp", "#25D366"],
-    ["ms", "Messenger", "linear-gradient(135deg,#0099ff,#a033ff 60%,#ff5c87)"],
-    ["fb", "Facebook", "#1877F2"],
     ["ig", "Instagram", "linear-gradient(45deg,#f9a825,#e91e63 50%,#7b1fa2)"],
+    ["ms", "Messenger", "linear-gradient(135deg,#0099ff,#a033ff 60%,#ff5c87)"],
+    ["wa", "WhatsApp", "#25D366"],
+    ["more", "Ďalšie…", "#1b46e5", function () { return !!navigator.share; }],
     ["sms", "SMS", "#34C759", function () { return isMobile(); }],
-    ["vb", "Viber", "#7360F2", function () { return isMobile(); }],
-    ["tg", "Telegram", "#229ED9"],
     ["mail", "E-mail", "#64748b"],
-    ["copy", "Kopírovať", "#11131a"],
-    ["more", "Ďalšie…", "#1b46e5", function () { return !!navigator.share; }]
+    ["copy", "Kopírovať", "#11131a"]
   ];
   var BUBBLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.1A8.5 8.5 0 1 1 21 12z"/></svg>';
   var SHI = { wa: IC.wa, ms: BUBBLE, fb: IC.fb, ig: IC.ig, sms: BUBBLE, vb: BUBBLE, tg: IC.send, mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>', copy: IC.link, more: IC.share };
@@ -1072,9 +1187,13 @@
     };
     switch (ch) {
       case "wa": open("https://wa.me/?text=" + all); break;
-      case "ms": if (isMobile()) go("fb-messenger://share/?link=" + u); else copyThen("Odkaz je skopírovaný – vlož ho do správy v Messengeri.", "https://www.messenger.com/"); break;
+      case "ms": if (isMobile()) go("fb-messenger://share/?link=" + u); else copyThen("Odkaz je skopírovaný – napíš meno kamoša a vlož ho do správy.", "https://www.messenger.com/new"); break;
       case "fb": open("https://www.facebook.com/sharer/sharer.php?u=" + u); break;
-      case "ig": copyThen("Odkaz je skopírovaný – v Instagrame ho vlož do správy alebo do príbehu.", "https://www.instagram.com/direct/inbox/"); break;
+      case "ig":
+        // v mobile: systémové zdieľanie → Instagram → napíšeš meno a odošleš (odkaz je už v správe)
+        if (isMobile() && navigator.share) { toast("Vyber <b>Instagram</b>, napíš meno kamoša a odošli."); navigator.share({ title: "EliteBiker Ride", text: LNK.text, url: LNK.url }).catch(function () {}); }
+        else copyThen("Odkaz je skopírovaný – v Instagrame napíš meno kamoša a vlož ho do správy.", "https://www.instagram.com/direct/new/");
+        break;
       case "sms": go("sms:" + (isIOS() ? "&" : "?") + "body=" + all); break;
       case "vb": go("viber://forward?text=" + all); break;
       case "tg": open("https://t.me/share/url?url=" + u + "&text=" + t); break;
@@ -1106,19 +1225,19 @@
   }
 
   /* ---------------- vytvorenie jazdy ---------------- */
-  function resetD() { D = { type: (S.me.bike_types && S.me.bike_types[0]) || "mtb", o: 1, time: "15:00", dur: 3, endO: null, meet: null, route: null, km: "", elev: "", max: "", link: "", title: "", pace: "stredne", note: "", inv: [], pub: !S.fr.friends.length, allowInv: false, tpl: -1, more: false }; }
+  function resetD() { D = { type: (S.me.bike_types && S.me.bike_types[0]) || "mtb", o: 1, time: "15:00", dur: 3, endO: null, meet: null, route: null, km: "", elev: "", max: "", link: "", title: "", pace: "stredne", trails: [], note: "", inv: [], pub: !S.fr.friends.length, allowInv: true, tpl: -1, more: false }; }
   function buildTemplates(list) {
     var map = {}, out = [];
     list.forEach(function (r) {
       var k = r.type + "|" + r.title.toLowerCase();
-      if (!map[k]) { map[k] = { title: r.title, type: r.type, starts_at: r.starts_at, ends_at: r.ends_at, meet: r.meet, route: r.route, km: r.distance_km, elev: r.elevation_m, max: r.max_people, link: r.link_url, pace: r.pace, note: r.note, vis: r.visibility, who: r.participants.filter(function (u) { return u !== S.uid; }), n: 0 }; out.push(map[k]); }
+      if (!map[k]) { map[k] = { title: r.title, type: r.type, starts_at: r.starts_at, ends_at: r.ends_at, meet: r.meet, route: r.route, km: r.distance_km, elev: r.elevation_m, max: r.max_people, link: r.link_url, pace: r.pace, trails: r.trails, note: r.note, vis: r.visibility, who: r.participants.filter(function (u) { return u !== S.uid; }), n: 0 }; out.push(map[k]); }
       map[k].n++;
     });
     return out.slice(0, 4);
   }
   function applyTpl(i) {
     var t = S.tpl[i], s = new Date(t.starts_at);
-    D.tpl = i; D.type = TYPES[t.type] ? t.type : "mtb"; D.title = t.title; D.meet = t.meet; D.route = t.route; D.km = t.km ? String(t.km) : ""; D.pace = t.pace; D.note = t.note || "";
+    D.tpl = i; D.type = TYPES[t.type] ? t.type : "mtb"; D.title = t.title; D.meet = t.meet; D.route = t.route; D.km = t.km ? String(t.km) : ""; D.pace = t.pace || "stredne"; D.trails = (t.trails || []).slice(); D.note = t.note || "";
     D.elev = t.elev ? String(t.elev) : ""; D.max = t.max ? String(t.max) : ""; D.link = t.link || "";
     D.time = String(s.getHours()).padStart(2, "0") + ":" + String(s.getMinutes()).padStart(2, "0");
     var h = Math.max(1, Math.round((new Date(t.ends_at) - s) / 36e5));
@@ -1137,7 +1256,7 @@
     for (var i = 0; i < 7; i++) { var d = dayAt(i); days += '<button type="button" data-act="d" data-k="o" data-v="' + i + '" class="' + (D.o === i ? "on" : "") + '">' + (i === 0 ? "Dnes" : i === 1 ? "Zajtra" : DS[d.getDay()]) + "<b>" + d.getDate() + "</b></button>"; }
     var datebtn = '<label class="datebtn' + (far ? " on" : "") + '">' + sz(IC.cal, 18) + "<span>" + (far ? "<b>" + DN[dayAt(D.o).getDay()] + " " + dayAt(D.o).getDate() + ". " + (dayAt(D.o).getMonth() + 1) + ". " + dayAt(D.o).getFullYear() + "</b><small>zmeniť dátum</small>" : "<b>Iný dátum</b><small>napr. o týždeň alebo o mesiac</small>") + "</span>" +
       '<input type="date" id="f-date" aria-label="Vybrať dátum" min="' + ymd(dayAt(0)) + '" max="' + ymd(dayAt(400)) + '" value="' + ymd(dayAt(D.o)) + '"></label>';
-    var tpl = S.tpl.map(function (h, i) { var ty = TYPES[h.type] || TYPES.mtb; return '<button type="button" data-act="tpl" data-i="' + i + '" class="' + (D.tpl === i ? "on" : "") + '"><span class="ty">' + IC[ty[1]] + ty[0] + " · " + hm(h.starts_at) + "</span><b>" + esc(h.title) + "</b><small>" + (h.km ? km(h.km) + " km · " : "") + PACE[h.pace].toLowerCase() + "</small><small style=\"margin-top:3px\">" + esc((h.meet.label || "").split(",")[0]) + " · " + h.n + "×</small><div class=\"stack\">" + h.who.slice(0, 4).map(function (u) { return pic(u, "s"); }).join("") + "</div></button>"; }).join("");
+    var tpl = S.tpl.map(function (h, i) { var ty = TYPES[h.type] || TYPES.mtb; return '<button type="button" data-act="tpl" data-i="' + i + '" class="' + (D.tpl === i ? "on" : "") + '"><span class="ty">' + IC[ty[1]] + ty[0] + " · " + hm(h.starts_at) + "</span><b>" + esc(h.title) + "</b><small>" + [h.km ? km(h.km) + " km" : "", rideStyle(h)].filter(Boolean).join(" · ") + "</small><small style=\"margin-top:3px\">" + esc((h.meet.label || "").split(",")[0]) + " · " + h.n + "×</small><div class=\"stack\">" + h.who.slice(0, 4).map(function (u) { return pic(u, "s"); }).join("") + "</div></button>"; }).join("");
     var multi = D.dur === "multi", moreOpen = D.more === true || ((far || multi) && D.more !== "closed");
     var filled = [D.km, D.elev, D.max, D.link, D.note].filter(function (x) { return x && String(x).trim(); }).length;
     return '<div class="sh-top"><button class="icb" data-act="close" aria-label="Zavrieť">' + IC.close + "</button><b>Nová jazda</b></div><form class=\"pad\" id=\"nform\" novalidate>" +
@@ -1149,9 +1268,10 @@
       (far ? '<p class="hint">' + sz(IC.cal, 14) + " Jazda je o " + D.o + " dní – pridaj partii viac podrobností nižšie.</p>" : "") +
       '<span class="fl">Kde je stretko?</span><button type="button" class="field' + (D.meet ? " set" : "") + '" data-act="pick-meet"><span class="ic">' + IC.pin + '</span><div class="grow"><b>' + (D.meet ? "Stretko" : "Vybrať miesto na mape") + "</b><small>" + (D.meet ? esc(D.meet.label) : "Posuň mapu a polož špendlik – ako vo Wolte") + "</small></div>" + sz(IC.back, 16).replace("<svg", '<svg style="transform:rotate(180deg);color:var(--li)"') + "</button>" +
       (D.meet ? '<div class="lmap sm" id="fmap" style="margin-top:8px"></div>' : "") +
-      '<span class="fl">Trasa <small>nepovinné</small></span><button type="button" class="field' + (D.route ? " set" : "") + '" data-act="pick-route"' + (D.meet ? "" : " disabled") + '><span class="ic">' + IC.route + '</span><div class="grow"><b>' + (D.route ? "Trasa · " + esc(D.km) + " km" : "Nakresliť trasu na mape") + "</b><small>" + (D.route ? D.route.length + " bodov – ťukni a uprav" : D.meet ? "Ťukaj na mapu, kadiaľ pôjdete" : "Najprv vyber stretko") + "</small></div></button>" +
+      (hasPace(D.type) ? '<span class="fl">Trasa <small>nepovinné</small></span><button type="button" class="field' + (D.route ? " set" : "") + '" data-act="pick-route"' + (D.meet ? "" : " disabled") + '><span class="ic">' + IC.route + '</span><div class="grow"><b>' + (D.route ? "Trasa · " + esc(D.km) + " km" : "Nakresliť trasu na mape") + "</b><small>" + (D.route ? D.route.length + " bodov – ťukni a uprav" : D.meet ? "Ťukaj na mapu, kadiaľ pôjdete" : "Najprv vyber stretko") + "</small></div></button>" : "") +
       '<span class="fl">Kam? <small>názov jazdy</small></span><input class="inp" id="f-title" maxlength="80" value="' + esc(D.title) + '" placeholder="napr. Manín, Súľov, pumptrack" enterkeyhint="done">' +
-      '<span class="fl">Tempo</span><div class="seg3">' + Object.keys(PACE).map(function (k) { return '<button type="button" data-act="d" data-k="pace" data-v="' + k + '" class="' + (D.pace === k ? "on" : "") + '">' + PACE[k] + "</button>"; }).join("") + "</div>" +
+      (hasPace(D.type) ? '<span class="fl">Tempo</span><div class="seg3">' + Object.keys(PACE).map(function (k) { return '<button type="button" data-act="d" data-k="pace" data-v="' + k + '" class="' + (D.pace === k ? "on" : "") + '">' + PACE[k] + "</button>"; }).join("") + "</div>" : "") +
+      (D.type === "mtb" ? '<span class="fl">Aké traily? <small>môžeš vybrať viac</small></span><div class="trails">' + Object.keys(TRAILS).map(function (k) { var on = D.trails.indexOf(k) > -1; return '<button type="button" data-act="trail" data-v="' + k + '" class="' + (on ? "on" : "") + '" aria-pressed="' + on + '"><i style="background:' + TRAILS[k][2] + '"></i><b>' + TRAILS[k][0] + "</b><small>" + TRAILS[k][1] + "</small></button>"; }).join("") + "</div>" : "") +
       '<button type="button" class="more' + (moreOpen ? " open" : "") + '" data-act="more" aria-expanded="' + moreOpen + '"><span>' + (moreOpen ? "Podrobnosti" : "＋ Pridať podrobnosti") + (filled ? ' <i class="cnt">' + filled + "</i>" : "") + "</span><small>dĺžka, prevýšenie, limit ľudí, odkaz, popis</small>" + sz(IC.back, 16).replace("<svg", '<svg class="chev"') + "</button>" +
       '<div class="morebox"' + (moreOpen ? "" : " hidden") + ">" +
       '<div class="two"><div><span class="fl">Dĺžka (km)</span><input class="inp" id="f-km" inputmode="decimal" value="' + esc(D.km) + '" placeholder="napr. 35"></div><div><span class="fl">Prevýšenie (m)</span><input class="inp" id="f-elev" inputmode="numeric" value="' + esc(D.elev) + '" placeholder="napr. 800"></div></div>' +
@@ -1191,7 +1311,7 @@
     if (D.pub) who.push("🌍 Verejnosť");
     if (sel.length) who.push(all ? "Všetci priatelia" : sel.map(function (u) { return esc(hname(u)); }).join(", "));
     return '<div class="sh-top"><button class="icb" data-act="closem">' + IC.back + '</button><b>Komu pošleš jazdu?</b></div><div class="pad">' +
-      '<div class="rpill"><span class="ic">' + IC[ty[1]] + "</span><div><b>" + esc(D.title || "Jazda – " + ty[0]) + "</b><small>" + dLabel(st.toISOString()) + " o " + esc(D.time) + (D.km ? " · " + esc(D.km) + " km" : "") + " · " + PACE[D.pace].toLowerCase() + "</small></div></div>" +
+      '<div class="rpill"><span class="ic">' + IC[ty[1]] + "</span><div><b>" + esc(D.title || "Jazda – " + ty[0]) + "</b><small>" + dLabel(st.toISOString()) + " o " + esc(D.time) + (D.km ? " · " + esc(D.km) + " km" : "") + (rideStyle({ type: D.type, pace: D.pace, trails: D.trails }) ? " · " + rideStyle({ type: D.type, pace: D.pace, trails: D.trails }) : "") + "</small></div></div>" +
       '<span class="fl">Skratky</span><div class="scs"><button data-act="pub" class="pubsc' + (D.pub ? " on" : "") + '"><i>🌍</i>Verejnosť<small>bikeri do ' + RADIUS + " km</small></button>" +
       (S.fr.friends.length ? '<button data-act="sc-all" class="' + (all ? "on" : "") + '"><i>👥</i>Priatelia<small>' + S.fr.friends.length + " " + ludi(S.fr.friends.length) + "</small></button>" +
         S.sc.map(function (c, i) { var m = c.members.filter(isFriend), on = sel.length && same(sel, m); return '<button data-act="sc" data-i="' + i + '" class="' + (on ? "on" : "") + '"><i>' + esc(c.emoji) + "</i>" + esc(c.name) + "<small>" + m.map(function (u) { return esc(hname(u).split(/[._]/)[0]); }).join(", ") + "</small></button>"; }).join("") +
@@ -1201,8 +1321,7 @@
       (!S.fr.friends.length ? '<div class="nofr"><b>V appke ešte nemáš kamošov</b><small>Nevadí – jazdu uvidia bikeri z okolia, alebo po uložení pošli kamošom odkaz. Kto sa cez neho zaregistruje, je rovno na jazde.</small></div>' :
         '<span class="fl">Priatelia</span><div class="card" style="padding:4px 16px">' + S.fr.friends.map(function (id) { var on = sel.indexOf(id) > -1; return '<div class="inv-row' + (on ? " on" : "") + '" data-act="s-tog" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + esc([contactLine(id), prof(id).city].filter(Boolean).join(" · ")) + '</small></div><span class="cb">' + IC.check + "</span></div>"; }).join("") + "</div>" +
         '<p class="info" style="text-align:left">' + sz(IC.link, 13) + " Kamošom bez appky pošleš po uložení odkaz.</p>") +
-      (D.pub ? "" : '<div class="tog" data-act="allowinv"><div><b>Účastníci môžu pozvať ďalších</b><small>' + (D.allowInv ? "Aj tí, čo idú, môžu pridať svojich kamošov. Uvidíš ich vek." : "Ďalších ľudí môžeš pridať len ty.") + '</small></div><span class="sw' + (D.allowInv ? " on" : "") + '"></span></div>' +
-        '<p class="info">🔒 Jazdu uvidia len vybraní. Ostatní o nej nebudú vedieť.</p>') +
+      (D.pub ? "" : '<div class="chkrow' + (D.allowInv ? "" : " on") + '" data-act="allowinv" role="checkbox" aria-checked="' + !D.allowInv + '" tabindex="0"><span class="box">' + IC.check + '</span><div><b>Na jazdu môžu ísť len tí, ktorých pozvem</b><small>' + (D.allowInv ? "Teraz môžu účastníci pozvať aj svojich kamošov. Zaškrtni, ak to nechceš." : "🔒 Jazdu uvidia len tebou vybraní. Ďalej ju nikto nepošle.") + "</small></div></div>") +
       '<div class="sendbar"><div><div class="who">' + (who.length ? who.join(" + ") : S.fr.friends.length ? "Nikto nie je vybraný" : "Pozveš odkazom") + "<small>" + (sel.length ? sel.length + " " + ludi(sel.length) + " dostane pozvánku" + (D.pub ? " + bikeri v okolí" : "") : D.pub ? "uvidia ju bikeri do " + RADIUS + " km" : S.fr.friends.length ? "vyber kamošov alebo pošli odkaz" : "odkaz pošleš hneď po uložení") + '</small></div><button class="btn sm" data-act="dosend" id="dosend">' + sendLabel() + "</button></div></div></div>";
   }
   function sendLabel() { return D.inv.length ? "Odoslať " + sz(IC.send, 14) : D.pub ? "Zverejniť" : "Uložiť jazdu"; }
@@ -1220,7 +1339,8 @@
     var b = $("dosend"); if (b) { b.disabled = true; b.innerHTML = '<span class="spin-sm" style="border-top-color:var(--b);border-color:rgba(27,70,229,.25)"></span>'; }
     api.createRide({ type: D.type, title: title.slice(0, 80), note: (D.note || "").trim().slice(0, 2000), starts_at: st.toISOString(), ends_at: en.toISOString(),
       elevation_m: isFinite(el) ? el : null, max_people: mx, link_url: ln ? ln.slice(0, 300) : null,
-      meet: { lat: D.meet.lat, lng: D.meet.lng, label: D.meet.label }, route: D.route, distance_km: isFinite(km) ? km : null, pace: D.pace, visibility: dVis(),
+      meet: { lat: D.meet.lat, lng: D.meet.lng, label: D.meet.label }, route: hasPace(D.type) ? D.route : null, distance_km: isFinite(km) ? km : null,
+      pace: hasPace(D.type) ? D.pace : null, trails: D.type === "mtb" && D.trails.length ? D.trails.slice() : null, visibility: dVis(),
       audience_kind: same(D.inv, S.fr.friends) ? "friends" : "pick" }, D.inv.slice()).then(function (id) {
       closeModal(); $("sheet").classList.remove("open"); if (fmap) { fmap.remove(); fmap = null; }
       S.tab = "feed"; S.filter = "all"; S.pts = null;
@@ -1277,6 +1397,8 @@
       case "notif": openModal(vNotif()); break;
       case "filter": S.filter = el.dataset.f; render(true); break;
       case "open": openRide(id); break;
+      case "person": S.person = u; if (u === S.uid) { closeModal(); if ($("sheet").classList.contains("open")) closeSheet(); S.tab = "profile"; render(); } else openModal(vPerson(u)); break;
+      case "person-ride": closeModal(); openRide(id); break;
       case "close": closeSheet(); break;
       case "closem": if (pmap) { pmap.remove(); pmap = null; } closeModal(); break;
       case "scrim": if ($("modal").classList.contains("open")) closeModal(); else closeSheet(); break;
@@ -1299,7 +1421,9 @@
       case "cal": openCal(id); break;
       case "push-on": pushOn(); break;
       case "push-off": pushOff(); break;
-      case "push-test": api.pushTest().then(function (d) { toast(d && d.sent ? "Skúšobné upozornenie je na ceste 🔔" : "Na tomto zariadení nie sú zapnuté upozornenia."); }).catch(err); break;
+      case "push-test": pushTest(); break;
+      case "push-guide": goGuide(); break;
+      case "install": installNow(); break;
       case "story": openDesign(id); break;
       case "dsg": (function () { var k = el.dataset.k, v = el.dataset.v; if (k === "bg") DSG.bg = +v; else DSG[k] = v; drawDesign(true); buildDesign(); })(); break;
       case "dsg-photo": (function () { var r = find(S.openId), p = r && (S.photos[r.id] || [])[+el.dataset.i]; if (p) openDesign(r.id, { photo: p.id }); })(); break;
@@ -1312,6 +1436,7 @@
       case "repeat": openCreate(+el.dataset.i); break;
       case "tpl": saveD(); var ti = +el.dataset.i; if (D.tpl === ti) resetD(); else applyTpl(ti); drawCreate(true); break;
       case "d": saveD(); D[el.dataset.k] = el.dataset.k === "o" ? +el.dataset.v : el.dataset.v; drawCreate(true); break;
+      case "trail": saveD(); (function (k) { var i = D.trails.indexOf(k); if (i > -1) D.trails.splice(i, 1); else D.trails.push(k); })(el.dataset.v); drawCreate(true); break;
       case "pick-meet": openPicker("meet"); break;
       case "pick-route": if (D.meet) openPicker("route"); break;
       case "sc-all": D.inv = same(D.inv, S.fr.friends) ? [] : S.fr.friends.slice(); drawSend(true); break;
@@ -1332,12 +1457,13 @@
       case "inv-send": if (!INV.length) { toast("Vyber aspoň jedného kamoša."); return; } (function () { var n = INV.length; api.invite(id, INV.slice()).then(function () { INV = []; closeModal(); toast("Pozvánka odoslaná " + n + (n === 1 ? " kamošovi." : " kamošom.")); return refresh(); }).catch(err); })(); break;
       case "viewph": openModal(vPhoto(+el.dataset.i)); break;
       case "delph": (function () { var r = find(S.openId), p = S.photos[r.id][+el.dataset.i]; api.deletePhoto(p).then(function () { closeModal(); toast("Fotka zmazaná."); loadPhotos(r.id); }).catch(err); })(); break;
-      case "addfriend": api.requestFriend(u).then(function () { toast("Žiadosť odoslaná <b>" + esc(hname(u)) + "</b>."); return loadAll(); }).then(function () { render(true); }).catch(err); break;
-      case "accept": api.acceptFriend(u).then(function () { toast("<b>" + esc(hname(u)) + "</b> je v tvojej partii."); return loadAll(); }).then(function () { render(true); if ($("modal").classList.contains("open")) openModal(vNotif()); }).catch(err); break;
-      case "decline": case "unfriend": api.removeFriend(u).then(loadAll).then(function () { render(true); if ($("modal").classList.contains("open")) openModal(vNotif()); }).catch(err); break;
+      case "addfriend": api.requestFriend(u).then(function () { toast("Žiadosť odoslaná <b>" + esc(hname(u)) + "</b>."); return loadAll(); }).then(function () { render(true); modalAfterFriend(); }).catch(err); break;
+      case "accept": api.acceptFriend(u).then(function () { toast("<b>" + esc(hname(u)) + "</b> je v tvojej partii."); return loadAll(); }).then(function () { render(true); modalAfterFriend(); }).catch(err); break;
+      case "decline": case "unfriend": api.removeFriend(u).then(loadAll).then(function () { render(true); modalAfterFriend(); }).catch(err); break;
       case "edit": S.editing = !S.editing; render(true); break;
       case "bike-new": openBike(); break;
       case "bike-brand": BK.q = el.dataset.v; $("bq").value = BK.q; $("bres").innerHTML = bikeResults(); break;
+      case "bike-eb": BK.eb = !BK.eb; $("bres").innerHTML = bikeResults(); break;
       case "bike-add": addBike({ catalog_id: +el.dataset.c }).catch(function () {}); break;
       case "bike-del": if (el.dataset.sure) { api.deleteBike(id).then(function () { S.B[S.uid] = bikesOf(S.uid).filter(function (b) { return b.id !== id; }); render(true); toast("Bicykel odstránený."); }).catch(err); } else { el.dataset.sure = 1; el.textContent = "Odstrániť?"; el.classList.add("danger"); } break;
       case "push-hide": try { localStorage.setItem("eb_push_hide", String(Date.now())); } catch (x) {} render(true); break;
@@ -1390,7 +1516,7 @@
       });
     }).catch(err);
   });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") { if ($("modal").classList.contains("open")) { if (pmap) { pmap.remove(); pmap = null; } closeModal(); } else if ($("sheet").classList.contains("open")) closeSheet(); } });
+  document.addEventListener("keydown", function (e) { var t = e.target; if ((e.key === "Enter" || e.key === " ") && t && t.getAttribute && t.getAttribute("role") === "checkbox" && t.dataset.act) { e.preventDefault(); t.click(); return; } if (e.key === "Escape") { if ($("modal").classList.contains("open")) { if (pmap) { pmap.remove(); pmap = null; } closeModal(); } else if ($("sheet").classList.contains("open")) closeSheet(); } });
   function route(h) {
     if (h.indexOf("#jazda-") === 0) { openRide(h.slice(7)); return; }
     if (h === "#partia") {

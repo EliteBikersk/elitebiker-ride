@@ -9,7 +9,8 @@
     auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
   });
   var me = null;
-  var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,age,city,bike_types";
+  // vek a mesto sa nečítajú z tabuľky – vracia ich server len sebe a priateľom (profile_private)
+  var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,bike_types,created_at";
   var BIKE_COLS = "id,user_id,name,catalog_id,url,image,created_at", catP = null;
 
   // naše hlásenia zo servera (limity, kontroly) ukážeme priamo, ostatné nahradíme zrozumiteľnou vetou
@@ -37,13 +38,23 @@
     history.replaceState(null, "", location.pathname + location.search);
     return /expired|invalid|denied/i.test(e) ? "Odkaz na prihlásenie vypršal alebo už bol použitý. Pošli si nový." : "Prihlásenie sa nepodarilo, skús to znova.";
   }
+  // doplní vek a mesto – server ich vráti len pre mňa a mojich priateľov
+  function withPrivate(list) {
+    if (!list.length) return Promise.resolve(list);
+    return sb.rpc("profile_private", { p_ids: list.map(function (p) { return p.id; }) }).then(function (r) {
+      fail(r.error, "Profily sa nepodarilo načítať.");
+      var m = {}; (r.data || []).forEach(function (x) { m[x.id] = x; });
+      list.forEach(function (p) { var x = m[p.id]; p.age = x ? x.age : null; p.city = x ? x.city : null; });
+      return list;
+    });
+  }
   function normRide(r) {
     return {
       id: r.id, host: r.host, type: r.type, title: r.title, note: r.note || "",
       starts_at: r.starts_at, ends_at: r.ends_at,
       meet: { lat: r.meet_lat, lng: r.meet_lng, label: r.meet_label || "" },
       route: r.route || null, distance_km: r.distance_km != null ? +r.distance_km : null, elevation_m: r.elevation_m,
-      pace: r.pace, visibility: r.visibility || (r.allow_invites ? "friends" : "private"), allow_invites: r.allow_invites, audience_kind: r.audience_kind, max_people: r.max_people || null, link_url: r.link_url || null,
+      pace: r.pace, trails: r.trails || null, visibility: r.visibility || (r.allow_invites ? "friends" : "private"), allow_invites: r.allow_invites, audience_kind: r.audience_kind, max_people: r.max_people || null, link_url: r.link_url || null,
       participants: (r.ride_participants || []).map(function (p) { return p.user_id; }),
       audience: (r.ride_audience || []).map(function (p) { return p.user_id; })
     };
@@ -125,15 +136,20 @@
 
     /* ---------- profily ---------- */
     me: function () { return api.profile(me.id); },
-    profile: function (id) { return sb.from("profiles").select(PROFILE_COLS).eq("id", id).maybeSingle().then(function (r) { fail(r.error); return r.data; }); },
+    profile: function (id) { return api.profiles([id]).then(function (l) { return l[0] || null; }); },
     profiles: function (ids) {
       if (!ids.length) return Promise.resolve([]);
-      return sb.from("profiles").select(PROFILE_COLS).in("id", ids).then(function (r) { fail(r.error); return r.data; });
+      return sb.from("profiles").select(PROFILE_COLS).in("id", ids).then(function (r) {
+        fail(r.error);
+        var list = r.data || [];
+        return withPrivate(list);
+      });
     },
     updateProfile: function (patch) {
       return sb.from("profiles").update(patch).eq("id", me.id).select(PROFILE_COLS).single().then(function (r) {
         if (r.error && /duplicate|unique/i.test(r.error.message)) throw new Error("Toto Instagram meno už má niekto iný.");
-        fail(r.error, "Profil sa nepodarilo uložiť."); return r.data;
+        fail(r.error, "Profil sa nepodarilo uložiť.");
+        return withPrivate([r.data]).then(function (l) { return l[0]; });
       });
     },
     uploadAvatar: function (file) {
@@ -160,7 +176,7 @@
 
     /* ---------- bicykle: katalóg z elitebiker.sk + vlastné ---------- */
     catalog: function () {
-      if (!catP) catP = sb.from("catalog_bikes").select("id,name,brand,url,image").order("name").limit(3000).then(function (r) { fail(r.error, "Ponuku bicyklov sa nepodarilo načítať."); return r.data || []; });
+      if (!catP) catP = sb.from("catalog_bikes").select("id,name,brand,url,image,ebike").order("name").limit(3000).then(function (r) { fail(r.error, "Ponuku bicyklov sa nepodarilo načítať."); return r.data || []; });
       return catP.catch(function (e) { catP = null; throw e; });
     },
     bikes: function (ids) {
@@ -243,8 +259,9 @@
         host: me.id, type: d.type, title: d.title, note: d.note || null, starts_at: d.starts_at, ends_at: d.ends_at,
         meet_lat: d.meet.lat, meet_lng: d.meet.lng, meet_label: d.meet.label, route: d.route || null,
         distance_km: d.distance_km || null, elevation_m: d.elevation_m || null, max_people: d.max_people || null, link_url: d.link_url || null,
-        pace: d.pace, visibility: d.visibility || "friends", audience_kind: d.audience_kind || "pick"
+        pace: d.pace || null, visibility: d.visibility || "friends", audience_kind: d.audience_kind || "pick"
       };
+      if (d.trails && d.trails.length) row.trails = d.trails;
       return sb.from("rides").insert(row).select().single().then(function (r) {
         fail(r.error, "Jazdu sa nepodarilo uložiť.");
         var rows = audience.map(function (u) { return { ride_id: r.data.id, user_id: u, invited_by: me.id }; });
@@ -303,9 +320,12 @@
 
     /* ---------- počasie a upozornenia ---------- */
     weather: function (points) { return fn("weather", { points: points }).then(function (d) { return d.data || {}; }); },
-    pushSave: function (sub) {
+    pushSave: function (sub, device) {
       var j = sub.toJSON();
-      return sb.rpc("save_push_subscription", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth }).then(function (r) { fail(r.error, "Upozornenia sa nepodarilo zapnúť."); });
+      return sb.rpc("save_push_subscription", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_device: device || null }).then(function (r) { fail(r.error, "Upozornenia sa nepodarilo zapnúť."); });
+    },
+    pushDevices: function () {
+      return sb.from("push_subscriptions").select("endpoint,device,created_at,last_status,last_error,last_at").order("created_at", { ascending: false }).then(function (r) { return r.error ? [] : r.data; });
     },
     pushDelete: function (endpoint) { return sb.from("push_subscriptions").delete().eq("endpoint", endpoint).then(function (r) { fail(r.error); }); },
     pushTest: function () { return fn("weather-alerts", { test: true }); },

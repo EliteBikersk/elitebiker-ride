@@ -60,7 +60,8 @@
   var CAT = [[1, "Marin Rift Zone 2 29\"", "Marin"], [2, "Marin Alpine Trail E2", "Marin"], [3, "Marin San Quentin 3", "Marin"], [4, "Marin Gestalt X10", "Marin"], [5, "Marin Wildcat Trail 3", "Marin"],
     [6, "Marin Bobcat Trail 4 29\"", "Marin"], [7, "Marin Nicasio 2", "Marin"], [8, "Haro Shift R7", "Haro"], [9, "Haro Downtown 20\"", "Haro"], [10, "Transition Smuggler Carbon GX", "Transition"],
     [11, "Transition Spire Alloy", "Transition"], [12, "TIME ADHX 45", "TIME"], [13, "GT Aggressor 27,5\" Expert", "GT"], [14, "Chromag Darco", "Chromag"], [15, "STORM Barcelona 28\"", "STORM"], [16, "CANULL Air 16\"", "CANULL"]]
-    .map(function (x) { return { id: x[0], name: x[1], brand: x[2], url: "https://www.elitebiker.sk/", image: null }; });
+    .concat([[17, "Marin Rift Zone E", "Marin", 1], [18, "Marin Alpine Trail E1 Bosch CX", "Marin", 1], [19, "Haro Skwad LT", "Haro", 1], [20, "Bulls Sonic EVO AM1", "Bulls", 1], [21, "STORM E-Diamond 5 Low Step", "STORM", 1]])
+    .map(function (x) { return { id: x[0], name: x[1], brand: x[2], url: "https://www.elitebiker.sk/", image: null, ebike: !!x[3] }; });
   function seedBikes() {
     return [["u-adam", 1], ["u-peto", 10], ["u-lucia", 4], ["u-tomas", 12], ["u-jana", 2], ["u-marek", 8], ["u-zuza", 5]].map(function (x, i) {
       var c = CAT.filter(function (b) { return b.id === x[1]; })[0];
@@ -116,7 +117,8 @@
     isAdmin: function () { return wait(false); },
     me: function () { return wait(copy(D.me)); },
     profile: function (id) { return wait(copy(prof(id))); },
-    profiles: function (ids) { return wait(ids.map(prof).filter(Boolean).map(copy)); },
+    // vek a mesto len pre priateľov (ako na serveri)
+    profiles: function (ids) { return wait(ids.map(prof).filter(Boolean).map(copy).map(function (p) { if (p.id !== "me" && D.friends.indexOf(p.id) < 0) { p.age = null; p.city = null; } return p; })); },
     updateProfile: function (p) {
       if (p.ig_username) { for (var i = 0; i < D.profiles.length; i++) if (D.profiles[i].ig_username === p.ig_username) return Promise.reject(new Error("Toto Instagram meno už má niekto iný.")); }
       Object.assign(D.me, p); save(); return wait(copy(D.me));
@@ -129,7 +131,7 @@
       function n(x) { return String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
       q = n(q.trim().replace(/^@/, ""));
       return wait(D.profiles.filter(function (p) { return q.length > 2 && (n(p.display_name).indexOf(q) > -1 || n(p.ig_username).indexOf(q) > -1 || n(p.fb_name).indexOf(q) > -1); })
-        .slice(0, 10).map(function (p) { return { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url, city: p.city, ig_username: p.ig_username }; }));
+        .slice(0, 10).map(function (p) { return { id: p.id, display_name: p.display_name, avatar_url: p.avatar_url, city: D.friends.indexOf(p.id) > -1 ? p.city : null, ig_username: p.ig_username }; }));
     },
     catalog: function () { return wait(copy(CAT)); },
     bikes: function (ids) { var m = {}; ids.forEach(function (i) { m[i] = 1; }); return wait(copy(D.bikes.filter(function (b) { return m[b.user_id]; }))); },
@@ -228,8 +230,9 @@
       });
       return wait(out);
     },
-    pushSave: function () { D.push = true; save(); return wait(); },
+    pushSave: function (_s, device) { D.push = true; D.pushDev = device || "Toto zariadenie"; save(); return wait(); },
     pushDelete: function () { D.push = false; save(); return wait(); },
+    pushDevices: function () { return wait(D.push ? [{ endpoint: "demo", device: D.pushDev || "Toto zariadenie", created_at: new Date().toISOString(), last_status: 201, last_at: new Date().toISOString() }] : []); },
     pushTest: function () { return wait({ sent: 1 }); },
     deleteAccount: function () { localStorage.removeItem(KEY); load(); return wait(); }
   };

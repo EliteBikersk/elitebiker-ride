@@ -1,12 +1,12 @@
-// Katalóg bicyklov z e-shopu elitebiker.sk (kategória Bicykel pre každého) – spúšťa pg_cron raz denne.
+// Katalóg bicyklov z e-shopu elitebiker.sk (kategórie Bicykel pre každého a Elektrobicykel) – spúšťa pg_cron raz denne.
 // Ukladá len verejné údaje: ID produktu, názov, značku, odkaz a fotku.
 import { admin, json } from "../_shared/util.ts";
 import { sameSecret, secrets } from "../_shared/push.ts";
 
 const BASE = "https://www.elitebiker.sk";
-const CATEGORY = "/bicykel-pre-kazdeho/";
+const CATEGORIES: [string, boolean][] = [["/bicykel-pre-kazdeho/", false], ["/elektrobicykel/", true]];
 const UA = "EliteBikerRide/1.0 (+https://elitebikersk.github.io/elitebiker-ride/)";
-type Bike = { id: number; name: string; brand: string | null; url: string; image: string | null };
+type Bike = { id: number; name: string; brand: string | null; url: string; image: string | null; ebike?: boolean };
 
 function decode(s: string) {
   return s.replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
@@ -45,16 +45,21 @@ Deno.serve(async (req) => {
   if (!S.cron_key || !sameSecret(req.headers.get("x-cron-key") ?? "", S.cron_key)) return json(req, { error: "forbidden" }, 403);
   const started = new Date().toISOString();
   const seen = new Map<number, Bike>();
-  for (let page = 1; page <= 60; page++) {
-    const r = await fetch(BASE + CATEGORY + (page > 1 ? `strana-${page}/` : ""), { headers: { "User-Agent": UA, "Accept-Language": "sk" } });
-    if (!r.ok) break;
-    const html = await r.text();
-    let added = 0;
-    for (const b of parse(html)) if (!seen.has(b.id)) { seen.set(b.id, b); added++; }
-    if (!added || !html.includes(`strana-${page + 1}/`)) break;
+  for (const [cat, ebike] of CATEGORIES) {
+    for (let page = 1; page <= 60; page++) {
+      const r = await fetch(BASE + cat + (page > 1 ? `strana-${page}/` : ""), { headers: { "User-Agent": UA, "Accept-Language": "sk" } });
+      if (!r.ok) break;
+      const html = await r.text();
+      let added = 0;
+      for (const b of parse(html)) {
+        const old = seen.get(b.id);
+        if (!old) { seen.set(b.id, { ...b, ebike }); added++; } else if (ebike) old.ebike = true;
+      }
+      if (!added || !html.includes(`strana-${page + 1}/`)) break;
+    }
   }
   if (seen.size < 20) return json(req, { error: "Načítalo sa príliš málo bicyklov – katalóg nemením.", count: seen.size }, 502);
-  const rows = [...seen.values()].map((b) => ({ ...b, updated_at: new Date().toISOString() }));
+  const rows = [...seen.values()].map((b) => ({ ...b, ebike: !!b.ebike, updated_at: new Date().toISOString() }));
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await db.from("catalog_bikes").upsert(rows.slice(i, i + 200));
     if (error) return json(req, { error: error.message }, 500);
