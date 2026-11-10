@@ -268,6 +268,16 @@
         return (rows.length ? sb.from("ride_audience").insert(rows) : Promise.resolve({})).then(function (x) { fail(x.error, "Jazda je uložená, ale pozvánky sa nepodarilo poslať."); return r.data.id; });
       });
     },
+    // organizátor upraví jazdu; posielame len polia, ktoré prišli
+    updateRide: function (id, d) {
+      var row = {};
+      ["type", "title", "note", "starts_at", "ends_at", "route", "distance_km", "elevation_m", "max_people", "link_url", "pace", "trails"].forEach(function (k) { if (k in d) row[k] = d[k]; });
+      if (d.meet) { row.meet_lat = d.meet.lat; row.meet_lng = d.meet.lng; row.meet_label = d.meet.label; }
+      return sb.from("rides").update(row).eq("id", id).select("id").then(function (r) {
+        fail(r.error, "Zmeny sa nepodarilo uložiť.");
+        if (!r.data || !r.data.length) throw new Error("Túto jazdu môže upraviť len ten, kto ju vytvoril.");
+      });
+    },
     setVisibility: function (id, v) { return sb.from("rides").update({ visibility: v }).eq("id", id).then(function (r) { fail(r.error, "Zmenu sa nepodarilo uložiť."); }); },
     cancelRide: function (id) { return sb.from("rides").delete().eq("id", id).then(function (r) { fail(r.error); }); },
     joinRide: function (id) { return sb.from("ride_participants").insert({ ride_id: id, user_id: me.id }).then(function (r) { fail(r.error, "Pridať sa nepodarilo."); }); },
@@ -326,6 +336,18 @@
     },
     pushDevices: function () {
       return sb.from("push_subscriptions").select("endpoint,device,created_at,last_status,last_error,last_at").order("created_at", { ascending: false }).then(function (r) { return r.error ? [] : r.data; });
+    },
+    // na čo chcem upozornenia (null = ešte nenastavené, teda všetko)
+    prefs: function () {
+      return sb.from("notify_prefs").select("push").eq("user_id", me.id).maybeSingle().then(function (r) { fail(r.error, "Nastavenia upozornení sa nepodarilo načítať."); return r.data ? r.data.push : null; });
+    },
+    savePrefs: function (push) {
+      var msg = "Nastavenie sa nepodarilo uložiť.";
+      return sb.from("notify_prefs").update({ push: push }).eq("user_id", me.id).select("user_id").then(function (r) {
+        fail(r.error, msg);
+        if (r.data && r.data.length) return;
+        return sb.from("notify_prefs").insert({ user_id: me.id, push: push }).then(function (x) { fail(x.error, msg); });
+      });
     },
     pushDelete: function (endpoint) { return sb.from("push_subscriptions").delete().eq("endpoint", endpoint).then(function (r) { fail(r.error); }); },
     pushTest: function () { return fn("weather-alerts", { test: true }); },

@@ -180,6 +180,14 @@
       }, 5000);
       return wait(r.id);
     },
+    updateRide: function (id, d) {
+      var r = ride(id);
+      if (!r || r.host !== "me") return Promise.reject(new Error("Túto jazdu môže upraviť len ten, kto ju vytvoril."));
+      if (new Date(r.ends_at) < new Date()) return Promise.reject(new Error("Skončenú jazdu už nemôžeš upraviť."));
+      if (d.max_people && d.max_people < r.participants.length) return Promise.reject(new Error("Na jazdu sa už prihlásilo viac ľudí, ako je nový limit."));
+      Object.keys(d).forEach(function (k) { r[k] = d[k] && typeof d[k] === "object" ? JSON.parse(JSON.stringify(d[k])) : d[k]; });
+      changed(); return wait();
+    },
     setVisibility: function (id, v) { var r = ride(id); r.visibility = v; r.allow_invites = v !== "private"; changed(); return wait(); },
     cancelRide: function (id) { D.rides = D.rides.filter(function (r) { return r.id !== id; }); changed(); return wait(); },
     joinRide: function (id) { var r = ride(id); if (!visible(r)) return Promise.reject(new Error("Pridať sa nepodarilo.")); if (r.participants.indexOf("me") < 0) r.participants.push("me"); changed(); return wait(); },
@@ -232,6 +240,8 @@
     },
     pushSave: function (_s, device) { D.push = true; D.pushDev = device || "Toto zariadenie"; save(); return wait(); },
     pushDelete: function () { D.push = false; save(); return wait(); },
+    prefs: function () { return wait(D.prefs ? D.prefs.slice() : null); },
+    savePrefs: function (push) { D.prefs = push.slice(); save(); return wait(); },
     pushDevices: function () { return wait(D.push ? [{ endpoint: "demo", device: D.pushDev || "Toto zariadenie", created_at: new Date().toISOString(), last_status: 201, last_at: new Date().toISOString() }] : []); },
     pushTest: function () { return wait({ sent: 1 }); },
     deleteAccount: function () { localStorage.removeItem(KEY); load(); return wait(); }

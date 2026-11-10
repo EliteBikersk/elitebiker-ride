@@ -66,7 +66,7 @@
       var line = L.polyline(ride.route, { color: "#1b46e5", weight: 5, opacity: .9 }).addTo(m);
       m.fitBounds(line.getBounds().extend(ll), { padding: [24, 24] });
     } else m.setView(ll, 14);
-    setTimeout(function () { m.invalidateSize(); }, 380);
+    setTimeout(function () { if (m._container && m._container._leaflet_id && m._mapPane) m.invalidateSize(); }, 380);
     return m;
   }
 
@@ -98,7 +98,7 @@
     m.on("movestart", function () { mp.classList.add("moving"); });
     m.on("moveend", function () { mp.classList.remove("moving"); upd(); });
     if (opts.value && opts.value.label) root.querySelector("#mpAddr").textContent = opts.value.label; else upd();
-    setTimeout(function () { m.invalidateSize(); }, 380);
+    setTimeout(function () { if (m._container && m._container._leaflet_id && m._mapPane) m.invalidateSize(); }, 380);
 
     var q = root.querySelector("#mpQ"), res = root.querySelector("#mpRes"), qt;
     q.addEventListener("input", function () {
@@ -158,7 +158,7 @@
     if (pts.length > 1) m.fitBounds(L.latLngBounds(pts), { padding: [40, 40] }); else m.setView(pts[0] || [opts.home.lat, opts.home.lng], 13);
     m.on("click", function (e) { pts.push([+e.latlng.lat.toFixed(5), +e.latlng.lng.toFixed(5)]); redraw(); var h = root.querySelector("#mpHint"); if (h) h.remove(); });
     redraw();
-    setTimeout(function () { m.invalidateSize(); }, 380);
+    setTimeout(function () { if (m._container && m._container._leaflet_id && m._mapPane) m.invalidateSize(); }, 380);
     var q = root.querySelector("#mpQ"), res = root.querySelector("#mpRes"), qt;
     q.addEventListener("input", function () {
       clearTimeout(qt); var v = q.value.trim(); if (v.length < 3) { res.hidden = true; return; }
