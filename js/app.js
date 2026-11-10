@@ -48,7 +48,8 @@
   var TRAILS = { green: ["Zelená", "ľahké", "#16a34a"], blue: ["Modrá", "stredné", "#2563eb"], red: ["Červená", "náročné", "#dc2626"], black: ["Čierna", "expert", "#11131a"] };
   function hasPace(t) { return t === "cesta" || t === "gravel"; } // tempo a trasa len pri ceste a gravel
   function paceOf(r) { return hasPace(r.type) && r.pace && PACE[r.pace] ? PACE[r.pace] : ""; }
-  function trailsOf(r) { return r.type === "mtb" && r.trails && r.trails.length ? r.trails.filter(function (t) { return TRAILS[t]; }) : []; }
+  function hasTrails(t) { return t === "mtb" || t === "ebike"; } // farby trailov pri horskom aj e-bike
+  function trailsOf(r) { return hasTrails(r.type) && r.trails && r.trails.length ? r.trails.filter(function (t) { return TRAILS[t]; }) : []; }
   function tdots(list) { return '<span class="tdots">' + list.map(function (t) { return '<i style="background:' + TRAILS[t][2] + '" title="' + TRAILS[t][0] + '"></i>'; }).join("") + "</span>"; }
   function trailText(list) { return list.map(function (t) { return TRAILS[t][0].toLowerCase(); }).join(", "); }
   function rideStyle(r) { var p = paceOf(r), t = trailsOf(r); return p ? "tempo " + p.toLowerCase() : t.length ? "traily: " + trailText(t) : ""; }
@@ -526,7 +527,7 @@
       '<h1 class="t" style="margin-top:10px;font-size:21px">' + esc(r.title) + '</h1><p class="sub when">' + esc(whenText(r)) + "</p>" +
       (ended(r) ? "" : '<button class="calbtn" data-act="cal" data-id="' + r.id + '">' + sz(IC.cal, 16) + "Pridať do kalendára</button>") +
       '<div class="field set" style="margin-top:10px;cursor:default"><span class="ic">' + IC.pin + '</span><div class="grow"><b>Stretko</b><small>' + esc(r.meet.label) + "</small></div></div>" +
-      '<div class="grid4"><div><b>' + (r.distance_km ? km(r.distance_km) : "?") + "</b><small>km</small></div><div><b>" + (r.elevation_m || "?") + "</b><small>m stúp.</small></div><div>" + (paceOf(r) ? "<b>" + paceOf(r) + "</b><small>tempo</small>" : trailsOf(r).length ? "<b>" + tdots(trailsOf(r)) + "</b><small>" + (trailsOf(r).length === 1 ? TRAILS[trailsOf(r)[0]][0].toLowerCase() + " · " + TRAILS[trailsOf(r)[0]][1] : "traily") + "</small>" : "<b>" + (TYPES[r.type] || TYPES.mtb)[0] + "</b><small>bicykel</small>") + '</div><div><b id="dCount">' + r.participants.length + (r.max_people ? "/" + r.max_people : "") + "</b><small>" + (r.max_people ? "miest" : ludi(r.participants.length)) + "</small></div></div>" +
+      statGrid(r) +
       (r.note ? '<div class="note">' + esc(r.note) + "</div>" : "") +
       (r.link_url ? '<a class="linkout" href="' + esc(r.link_url) + '" target="_blank" rel="noopener nofollow">' + sz(IC.link, 16) + '<span class="grow"><b>Trasa / info o akcii</b><small>' + esc(r.link_url.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) + "</small></span>" + sz(IC.back, 14).replace("<svg", '<svg style="transform:rotate(180deg)"') + "</a>" : "") +
       '<div id="dWx"></div><div id="dPhotos"></div><div id="dPeople"></div><div id="dChat"></div></div><div class="sticky-act" id="dActs"></div>');
@@ -584,10 +585,20 @@
     if (scroll) { var sh = $("sheet"); sh.scrollTop = sh.scrollHeight; }
   }
   function loadPhotos(id) { api.photos(id).then(function (p) { S.photos[id] = p; if (S.openId === id) renderPhotos(); }).catch(function () { S.photos[id] = []; }); }
+  // údaje jazdy: ukážeme len to, čo organizátor vyplnil
+  function statGrid(r) {
+    var c = [];
+    if (r.distance_km) c.push("<b>" + km(r.distance_km) + "</b><small>km</small>");
+    if (r.elevation_m) c.push("<b>" + r.elevation_m + "</b><small>m stúpania</small>");
+    if (paceOf(r)) c.push("<b>" + paceOf(r) + "</b><small>tempo</small>");
+    else if (trailsOf(r).length) c.push("<b>" + tdots(trailsOf(r)) + "</b><small>" + (trailsOf(r).length === 1 ? TRAILS[trailsOf(r)[0]][0].toLowerCase() + " · " + TRAILS[trailsOf(r)[0]][1] : trailText(trailsOf(r))) + "</small>");
+    c.push('<b id="dCount">' + r.participants.length + (r.max_people ? "/" + r.max_people : "") + "</b><small>" + (r.max_people ? "miest" : ludi(r.participants.length)) + "</small>");
+    return '<div class="grid4" style="grid-template-columns:repeat(' + c.length + ',minmax(0,1fr))">' + c.map(function (x) { return "<div>" + x + "</div>"; }).join("") + "</div>";
+  }
   function renderPhotos() {
     var r = find(S.openId), el = $("dPhotos"); if (!r || !el) return;
+    el.innerHTML = ""; return;
     var ph = S.photos[r.id] || [], can = going(r);
-    if (!can && !ph.length) { el.innerHTML = ""; return; }
     el.innerHTML = (canStory(r) && !ended(r) ? '<button class="storyrow" data-act="story" data-id="' + r.id + '">' + sz(IC.share, 20) + '<span class="grow"><b>Zdieľať jazdu</b><small>fotka s číslami, trasou a logom EliteBiker</small></span></button>' : "") + '<div class="sec-h"><b>Fotky z jazdy</b><small>' + (ph.length ? ph.length + " · vidia ich všetci pozvaní" : "zatiaľ žiadne") + '</small></div><div class="phg">' +
       (can ? '<label class="upt">' + sz(IC.plus, 22) + 'Pridať fotku<input type="file" accept="image/*" multiple data-up="photo" data-id="' + r.id + '"></label>' : "") +
       ph.map(function (p, i) { return '<div class="ph" data-act="viewph" data-i="' + i + '"><img class="real" src="' + esc(p.url) + '" alt="" loading="lazy"><span class="who">' + pic(p.user_id, "xs") + '<span style="overflow:hidden;text-overflow:ellipsis">' + (p.user_id === S.uid ? "ty" : esc(hname(p.user_id))) + "</span></span></div>"; }).join("") + "</div>" +
@@ -867,7 +878,7 @@
   }
 
   /* ---------------- EliteBiker dizajn na zdieľanie (fotka + štatistiky, trasa, partia, nálepka) ---------------- */
-  var DSG = { id: null, style: "stats", fmt: "story", bg: 0, local: null, localFor: null, blob: null, url: null, n: 0 };
+  var DSG = { id: null, style: "stats", fmt: "story", bg: 0, locals: [], blob: null, url: null, n: 0 };
   var DSTY = [["stats", "Štatistiky"], ["route", "Trasa"], ["crew", "Partia"], ["sticker", "Nálepka"]];
   var DFMT = [["story", "Príbeh 9:16"], ["post", "Príspevok 4:5"]];
   function loadImg(src) { return new Promise(function (res) { if (!src) return res(null); var i = new Image(); if (!/^(blob|data):/.test(src)) i.crossOrigin = "anonymous"; i.onload = function () { res(i); }; i.onerror = function () { res(null); }; i.src = src; }); }
@@ -1067,19 +1078,15 @@
     });
   }
 
-  function dsgBgs() { return (S.photos[DSG.id] || []).slice(0, 12).map(function (p) { return { id: p.id, url: DSG.local && DSG.localFor === p.id ? DSG.local : p.url }; }); }
+  // pozadie: fotky vybrané priamo z mobilu (nikam sa nenahrávajú)
+  function dsgBgs() { return (DSG.locals || []).map(function (u, i) { return { id: "l" + i, url: u }; }); }
   function openDesign(id, o) {
     var r = find(id); if (!r) return; o = o || {};
-    if (DSG.local && DSG.local !== o.local) URL.revokeObjectURL(DSG.local);
-    DSG.id = id; DSG.local = o.local || null; DSG.localFor = o.photo || null; DSG.blob = null;
-    var go = function () {
-      var bgs = dsgBgs(), i = -1;
-      if (o.photo) bgs.forEach(function (b, k) { if (b.id === o.photo) i = k; });
-      DSG.bg = i > -1 ? i + 1 : bgs.length ? 1 : 0;
-      DSG.style = o.style || (DSG.bg ? "stats" : routeOf(r) ? "route" : "crew");
-      drawDesign(); buildDesign();
-    };
-    if (S.photos[id]) go(); else api.photos(id).then(function (p) { S.photos[id] = p; go(); }).catch(function () { S.photos[id] = []; go(); });
+    if (DSG.id !== id) { (DSG.locals || []).forEach(function (u) { URL.revokeObjectURL(u); }); DSG.locals = []; }
+    DSG.id = id; DSG.blob = null;
+    DSG.bg = DSG.locals.length ? 1 : 0;
+    DSG.style = o.style || (DSG.bg ? "stats" : routeOf(r) ? "route" : "crew");
+    drawDesign(); buildDesign();
   }
   function clipOk() { return !!(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write); }
   function dsgFmt() { return DSG.style === "crew" ? "story" : DSG.fmt; }
@@ -1094,7 +1101,7 @@
         : '<div class="dfmt">' + DFMT.map(function (f) { return opt("fmt", f[0], f[1], fmt === f[0]) .replace("<button", st === "crew" && f[0] === "post" ? "<button disabled" : "<button"); }).join("") + "</div>" +
           '<span class="fl">Pozadie</span><div class="bgs f-' + fmt + '">' + opt("bg", 0, '<span class="blue"></span>', DSG.bg === 0) +
           bgs.map(function (b, i) { return opt("bg", i + 1, '<img src="' + esc(b.url) + '" alt="">', DSG.bg === i + 1); }).join("") +
-          (going(r) ? '<label class="bgadd" title="Pridať fotku">' + sz(IC.plus, 20) + '<span>Fotka</span><input type="file" accept="image/*" data-up="photo" data-id="' + r.id + '" hidden></label>' : "") + "</div>") +
+          '<label class="bgadd" title="Vybrať fotku z mobilu">' + sz(IC.plus, 20) + '<span>Fotka</span><input type="file" accept="image/*" data-up="dsgbg" hidden></label>' + "</div>") +
       '<div class="lacts" style="margin-top:16px">' + (canShare ? '<button class="btn igb" data-act="dsg-share" disabled>' + sz(IC.share, 16) + "Zdieľať</button>" : "") +
       (stk && clipOk() ? '<button class="btn" data-act="dsg-copy" disabled>Kopírovať nálepku</button>' : "") +
       '<button class="btn gh" data-act="dsg-save" disabled>Uložiť obrázok</button></div>' +
@@ -1265,7 +1272,7 @@
       (hasPace(D.type) ? '<span class="fl">Trasa <small>nepovinné</small></span><button type="button" class="field' + (D.route ? " set" : "") + '" data-act="pick-route"' + (D.meet ? "" : " disabled") + '><span class="ic">' + IC.route + '</span><div class="grow"><b>' + (D.route ? "Trasa · " + esc(D.km) + " km" : "Nakresliť trasu na mape") + "</b><small>" + (D.route ? D.route.length + " bodov, ťukni a uprav" : D.meet ? "Ťukaj na mapu, kadiaľ pôjdete" : "Najprv vyber stretko") + "</small></div></button>" : "") +
       '<span class="fl">Kam? <small>názov jazdy</small></span><input class="inp" id="f-title" maxlength="80" value="' + esc(D.title) + '" placeholder="napr. Manín, Súľov, pumptrack" enterkeyhint="done">' +
       (hasPace(D.type) ? '<span class="fl">Tempo</span><div class="seg3">' + Object.keys(PACE).map(function (k) { return '<button type="button" data-act="d" data-k="pace" data-v="' + k + '" class="' + (D.pace === k ? "on" : "") + '">' + PACE[k] + "</button>"; }).join("") + "</div>" : "") +
-      (D.type === "mtb" ? '<span class="fl">Aké traily? <small>môžeš vybrať viac</small></span><div class="trails">' + Object.keys(TRAILS).map(function (k) { var on = D.trails.indexOf(k) > -1; return '<button type="button" data-act="trail" data-v="' + k + '" class="' + (on ? "on" : "") + '" aria-pressed="' + on + '"><i style="background:' + TRAILS[k][2] + '"></i><b>' + TRAILS[k][0] + "</b><small>" + TRAILS[k][1] + "</small></button>"; }).join("") + "</div>" : "") +
+      (hasTrails(D.type) ? '<span class="fl">Aké traily? <small>môžeš vybrať viac</small></span><div class="trails">' + Object.keys(TRAILS).map(function (k) { var on = D.trails.indexOf(k) > -1; return '<button type="button" data-act="trail" data-v="' + k + '" class="' + (on ? "on" : "") + '" aria-pressed="' + on + '"><i style="background:' + TRAILS[k][2] + '"></i><b>' + TRAILS[k][0] + "</b><small>" + TRAILS[k][1] + "</small></button>"; }).join("") + "</div>" : "") +
       '<button type="button" class="more' + (moreOpen ? " open" : "") + '" data-act="more" aria-expanded="' + moreOpen + '"><span>' + (moreOpen ? "Podrobnosti" : "＋ Pridať podrobnosti") + (filled ? ' <i class="cnt">' + filled + "</i>" : "") + "</span><small>dĺžka, prevýšenie, limit ľudí, odkaz, popis</small>" + sz(IC.back, 16).replace("<svg", '<svg class="chev"') + "</button>" +
       '<div class="morebox"' + (moreOpen ? "" : " hidden") + ">" +
       '<div class="two"><div><span class="fl">Dĺžka (km)</span><input class="inp" id="f-km" inputmode="decimal" value="' + esc(D.km) + '" placeholder="napr. 35"></div><div><span class="fl">Prevýšenie (m)</span><input class="inp" id="f-elev" inputmode="numeric" value="' + esc(D.elev) + '" placeholder="napr. 800"></div></div>' +
@@ -1334,7 +1341,7 @@
     api.createRide({ type: D.type, title: title.slice(0, 80), note: (D.note || "").trim().slice(0, 2000), starts_at: st.toISOString(), ends_at: en.toISOString(),
       elevation_m: isFinite(el) ? el : null, max_people: mx, link_url: ln ? ln.slice(0, 300) : null,
       meet: { lat: D.meet.lat, lng: D.meet.lng, label: D.meet.label }, route: hasPace(D.type) ? D.route : null, distance_km: isFinite(km) ? km : null,
-      pace: hasPace(D.type) ? D.pace : null, trails: D.type === "mtb" && D.trails.length ? D.trails.slice() : null, visibility: dVis(),
+      pace: hasPace(D.type) ? D.pace : null, trails: hasTrails(D.type) && D.trails.length ? D.trails.slice() : null, visibility: dVis(),
       audience_kind: same(D.inv, S.fr.friends) ? "friends" : "pick" }, D.inv.slice()).then(function (id) {
       closeModal(); $("sheet").classList.remove("open"); if (fmap) { fmap.remove(); fmap = null; }
       S.tab = "feed"; S.filter = "all"; S.pts = null;
@@ -1492,6 +1499,16 @@
     var t = e.target; if (!t || !t.files || !t.files.length || !t.dataset.up) return;
     var kind = t.dataset.up, id = t.dataset.id, files = [].slice.call(t.files);
     t.value = "";
+    if (kind === "dsgbg") {
+      var asp = DSG.style === "sticker" ? "1:1" : dsgFmt() === "post" ? "4:5" : "9:16";
+      (window.EBCrop ? EBCrop.open(files[0], { aspect: asp, lock: true, title: "Fotka na pozadie", parent: $("app") }).catch(function () { return { skip: true }; }) : Promise.resolve({ skip: true })).then(function (r) {
+        if (!r) return;
+        DSG.locals.unshift(URL.createObjectURL(r.blob || files[0])); DSG.locals = DSG.locals.slice(0, 6);
+        DSG.bg = 1; if (DSG.style === "route" || DSG.style === "sticker") DSG.style = "stats";
+        drawDesign(true); buildDesign();
+      });
+      return;
+    }
     if (kind === "avatar") cropAvatar(files[0]).then(function (f) {
       if (!f) return;
       toast("Nahrávam fotku…");
