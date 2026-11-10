@@ -23,6 +23,7 @@
       return r.data;
     });
   }
+  function backUrl() { var c = null; try { c = localStorage.getItem("eb_pozvanka"); } catch (e) {} return C.APP_URL + (c ? "?pozvanka=" + encodeURIComponent(c) : ""); }
   function linkError() {
     var h = new URLSearchParams(location.hash.replace(/^#/, "")), e = h.get("error_description") || h.get("error");
     if (!e) return null;
@@ -66,8 +67,48 @@
     onAuth: function (cb) { sb.auth.onAuthStateChange(function (_e, s) { me = s ? s.user : null; cb(me); }); },
     userId: function () { return me && me.id; },
     loginEmail: function (email) {
-      return sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: C.APP_URL + location.search } }).then(function (r) { fail(r.error, "E-mail sa nepodarilo odoslať. Skús to o chvíľu."); });
+      return sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: backUrl() } }).then(function (r) {
+        if (r.error && /rate|security purposes|seconds/i.test(r.error.message)) throw new Error("E-mail sme ti poslali len pred chvíľou. Skús to o minútu.");
+        fail(r.error, "E-mail sa nepodarilo odoslať. Skús to o chvíľu.");
+      });
     },
+    signIn: function (email, password) {
+      return sb.auth.signInWithPassword({ email: email, password: password }).then(function (r) {
+        if (!r.error) return;
+        var e;
+        if (/not confirmed/i.test(r.error.message)) { e = new Error("E-mail ešte nie je potvrdený – zadaj kód, ktorý sme ti poslali."); e.code = "unconfirmed"; throw e; }
+        if (/invalid/i.test(r.error.message)) throw new Error("Nesprávny e-mail alebo heslo.");
+        fail(r.error, "Prihlásenie sa nepodarilo.");
+      });
+    },
+    signUp: function (email, password) {
+      return sb.auth.signUp({ email: email, password: password, options: { emailRedirectTo: backUrl(), data: { has_password: true } } }).then(function (r) {
+        if (r.error) {
+          if (/registered|exists/i.test(r.error.message)) throw new Error("Tento e-mail už má účet – prihlás sa.");
+          if (/rate|security purposes|seconds/i.test(r.error.message)) throw new Error("Príliš veľa pokusov. Skús to o minútu.");
+          if (/password/i.test(r.error.message)) throw new Error("Heslo je príliš slabé – použi aspoň 8 znakov.");
+          fail(r.error, "Účet sa nepodarilo vytvoriť.");
+        }
+        if (r.data.session) return { session: true };
+        if (r.data.user && r.data.user.identities && !r.data.user.identities.length) throw new Error("Tento e-mail už má účet – prihlás sa.");
+        return { confirm: true };
+      });
+    },
+    resendSignup: function (email) {
+      return sb.auth.resend({ type: "signup", email: email, options: { emailRedirectTo: backUrl() } }).then(function (r) {
+        if (r.error && /rate|security purposes|seconds/i.test(r.error.message)) throw new Error("E-mail sme ti poslali len pred chvíľou. Skús to o minútu.");
+        fail(r.error, "E-mail sa nepodarilo poslať znova.");
+      });
+    },
+    setPassword: function (pw) {
+      return sb.auth.updateUser({ password: pw, data: { has_password: true } }).then(function (r) {
+        if (r.error && /different|same/i.test(r.error.message)) throw new Error("Nové heslo musí byť iné ako to staré.");
+        if (r.error && /reauthenticat|recent/i.test(r.error.message)) throw new Error("Z bezpečnostných dôvodov sa odhlás a prihlás kódom z e-mailu, potom heslo nastav znova.");
+        fail(r.error, "Heslo sa nepodarilo uložiť."); if (r.data && r.data.user) me = r.data.user;
+      });
+    },
+    email: function () { return me && me.email; },
+    hasPassword: function () { return !!(me && me.user_metadata && me.user_metadata.has_password); },
     verifyEmailCode: function (email, code) {
       return sb.auth.verifyOtp({ email: email, token: code, type: "email" }).then(function (r) { fail(r.error, "Kód nesedí alebo vypršal. Pošli si nový."); });
     },
@@ -106,6 +147,18 @@
       q = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v) ? q.eq("id", v) : q.eq("ig_username", v);
       return q.maybeSingle().then(function (r) { return r.data; });
     },
+
+    /* ---------- pozývacie odkazy ---------- */
+    createInvite: function (rideId) {
+      var q = sb.from("invites").select("code").eq("inviter", me.id).gt("expires_at", new Date(Date.now() + (rideId ? 0 : 7 * 864e5)).toISOString()).order("created_at", { ascending: false }).limit(1);
+      q = rideId ? q.eq("ride_id", rideId) : q.is("ride_id", null);
+      return q.then(function (r) {
+        if (r.data && r.data.length) return r.data[0].code;
+        return sb.from("invites").insert({ ride_id: rideId || null }).select("code").single().then(function (x) { fail(x.error, "Odkaz sa nepodarilo vytvoriť."); return x.data.code; });
+      });
+    },
+    inviteInfo: function (code) { return sb.rpc("invite_info", { p_code: code }).then(function (r) { return r.error ? null : r.data; }); },
+    redeemInvite: function (code) { return sb.rpc("redeem_invite", { p_code: code }).then(function (r) { fail(r.error, "Pozvánku sa nepodarilo uplatniť."); return r.data; }); },
 
     /* ---------- priatelia a skratky ---------- */
     friendships: function () {

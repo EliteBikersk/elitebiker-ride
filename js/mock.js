@@ -57,6 +57,7 @@
   function ride(id) { for (var i = 0; i < D.rides.length; i++) if (D.rides[i].id === id) return D.rides[i]; }
   function visible(r) { return r.host === "me" || r.participants.indexOf("me") > -1 || r.audience.indexOf("me") > -1; }
   function copy(o) { return JSON.parse(JSON.stringify(o)); }
+  function blankMe(email) { return { id: "me", ig_username: null, fb_name: null, display_name: "", age: null, city: "", bike_types: [], avatar_url: null, email: email }; }
   var listeners = [], chatL = {};
   function changed() { save(); listeners.forEach(function (f) { setTimeout(f, 50); }); }
   load();
@@ -67,8 +68,25 @@
     onAuth: function () {},
     userId: function () { return D.me ? "me" : null; },
     loginEmail: function (email) {
-      D.me = { id: "me", ig_username: null, fb_name: null, display_name: "", age: null, city: "", bike_types: [], avatar_url: null, email: email };
+      D.me = D.me || blankMe(email);
       save(); return wait().then(function () { setTimeout(function () { location.reload(); }, 900); });
+    },
+    signIn: function (email) { D.me = D.me || blankMe(email); D.me.has_password = true; save(); return wait(); },
+    signUp: function (email) { D.me = blankMe(email); D.me.has_password = true; save(); return wait({ session: true }); },
+    resendSignup: function () { return wait(); },
+    setPassword: function () { D.me.has_password = true; save(); return wait(); },
+    email: function () { return D.me && D.me.email; },
+    hasPassword: function () { return !!(D.me && D.me.has_password); },
+    createInvite: function (rideId) { return wait("demo-" + (rideId || "partia")); },
+    inviteInfo: function (code) {
+      var r = code.indexOf("demo-r") === 0 ? ride(code.slice(5)) : null, a = prof("u-adam");
+      return wait({ inviter: { name: a.display_name, avatar_url: a.avatar_url }, ride: r ? { title: r.title, type: r.type, starts_at: r.starts_at } : null, valid: true });
+    },
+    redeemInvite: function (code) {
+      if (D.friends.indexOf("u-adam") < 0) D.friends.push("u-adam");
+      var r = code.indexOf("demo-r") === 0 ? ride(code.slice(5)) : null;
+      if (r) { if (r.audience.indexOf("me") < 0) r.audience.push("me"); if (r.participants.indexOf("me") < 0) r.participants.push("me"); }
+      changed(); return wait({ ok: true, inviter: "u-adam", ride_id: r ? r.id : null });
     },
     verifyEmailCode: function () { return wait(); },
     logout: function () { localStorage.removeItem(KEY); load(); return wait(); },

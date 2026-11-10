@@ -335,3 +335,95 @@ end $$;
 select cron.unschedule('eb-ride-chat-cleanup') where exists (select 1 from cron.job where jobname = 'eb-ride-chat-cleanup');
 select cron.schedule('eb-ride-chat-cleanup', '*/15 * * * *',
   $$delete from public.messages m using public.rides r where m.ride_id = r.id and r.ends_at < now()$$);
+
+-- ---------------------------------------------------------------------
+-- 10. Pozývacie odkazy
+create table if not exists public.invites (
+  code       text primary key default translate(encode(extensions.gen_random_bytes(9), 'base64'), '+/', '-_'),
+  inviter    uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  ride_id    uuid references public.rides(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '30 days'
+);
+create index if not exists invites_inviter_idx on public.invites (inviter);
+create index if not exists invites_ride_idx on public.invites (ride_id);
+
+-- platnosť: odkaz na jazdu do konca jazdy, odkaz do partie 30 dní
+create or replace function public.invite_defaults() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  new.inviter := auth.uid();
+  new.created_at := now();
+  if new.ride_id is not null then
+    select ends_at into new.expires_at from rides where id = new.ride_id;
+  else
+    new.expires_at := now() + interval '30 days';
+  end if;
+  return new;
+end $$;
+drop trigger if exists on_invite_created on public.invites;
+create trigger on_invite_created before insert on public.invites
+  for each row execute function public.invite_defaults();
+
+alter table public.invites enable row level security;
+drop policy if exists "pozvánky – vlastné" on public.invites;
+create policy "pozvánky – vlastné" on public.invites for select to authenticated using (inviter = auth.uid());
+drop policy if exists "pozvánky – vytvorenie" on public.invites;
+create policy "pozvánky – vytvorenie" on public.invites for insert to authenticated
+  with check (inviter = auth.uid() and (ride_id is null or private.can_invite(ride_id)));
+drop policy if exists "pozvánky – zmazanie" on public.invites;
+create policy "pozvánky – zmazanie" on public.invites for delete to authenticated using (inviter = auth.uid());
+revoke all on public.invites from anon;
+grant select, insert, delete on public.invites to authenticated;
+
+-- čo uvidí človek s odkazom ešte pred registráciou
+create or replace function public.invite_info(p_code text) returns json
+language sql stable security definer set search_path = public as $$
+  select json_build_object(
+    'inviter', json_build_object('name', p.display_name, 'avatar_url', p.avatar_url),
+    'ride', case when r.id is null then null
+                 else json_build_object('title', r.title, 'type', r.type, 'starts_at', r.starts_at) end,
+    'valid', i.expires_at > now() and (i.ride_id is null or (r.id is not null and r.ends_at > now())))
+  from invites i
+  join profiles p on p.id = i.inviter
+  left join rides r on r.id = i.ride_id
+  where i.code = p_code;
+$$;
+
+-- uplatnenie odkazu po prihlásení
+create or replace function public.redeem_invite(p_code text) returns json
+language plpgsql security definer set search_path = public as $$
+declare
+  i  invites;
+  r  rides;
+  me uuid := auth.uid();
+begin
+  if me is null then raise exception 'Nie si prihlásený.'; end if;
+  select * into i from invites where code = p_code;
+  if not found or i.expires_at <= now() then
+    return json_build_object('ok', false, 'reason', 'expired');
+  end if;
+  if i.inviter = me then
+    return json_build_object('ok', false, 'reason', 'self', 'ride_id', i.ride_id);
+  end if;
+  update friendships set status = 'accepted'
+   where (requester = i.inviter and addressee = me) or (requester = me and addressee = i.inviter);
+  if not found then
+    insert into friendships (requester, addressee, status) values (i.inviter, me, 'accepted') on conflict do nothing;
+  end if;
+  if i.ride_id is not null then
+    select * into r from rides where id = i.ride_id;
+    if not found or r.ends_at <= now() then
+      return json_build_object('ok', true, 'inviter', i.inviter, 'ride_id', null, 'reason', 'ride_ended');
+    end if;
+    insert into ride_audience (ride_id, user_id, invited_by) values (r.id, me, i.inviter) on conflict do nothing;
+    insert into ride_participants (ride_id, user_id) values (r.id, me) on conflict do nothing;
+  end if;
+  return json_build_object('ok', true, 'inviter', i.inviter, 'ride_id', i.ride_id);
+end $$;
+
+revoke execute on function public.invite_defaults() from anon, authenticated, public;
+revoke execute on function public.invite_info(text) from public;
+grant execute on function public.invite_info(text) to anon, authenticated;
+revoke execute on function public.redeem_invite(text) from anon, public;
+grant execute on function public.redeem_invite(text) to authenticated;
