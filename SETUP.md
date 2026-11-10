@@ -35,6 +35,21 @@ npx supabase functions deploy delete-account --no-verify-jwt
 ```
 (Alebo cez web: **Edge Functions → Deploy a new function** a vložiť `supabase/functions-bundled/delete-account/index.ts`.)
 
+### Počasie a upozornenia
+- Funkcie `weather` (predpoveď pre aplikáciu) a `weather-alerts` (upozornenia) – nasadiť zo `supabase/functions-bundled/`.
+- Predpoveď: MET Norway (api.met.no, zadarmo aj komerčne, uvádzať zdroj), cache v tabuľke `weather_cache` na 1 h.
+- Kľúče pre upozornenia (VAPID) a `cron_key` sú v tabuľke `app_secrets` (nečitateľná z prehliadača). Verejný VAPID kľúč je v `js/config.js` (`VAPID_PUBLIC`).
+- Každú hodinu (7. minúta) volá pg_cron funkciu `weather-alerts`:
+```sql
+select cron.schedule('eb-ride-weather-alerts', '7 * * * *', $$
+  select net.http_post(url := 'https://<ref>.supabase.co/functions/v1/weather-alerts',
+    headers := jsonb_build_object('Content-Type','application/json','x-cron-key',(select value from public.app_secrets where name='cron_key')),
+    body := '{"cron":true}'::jsonb, timeout_milliseconds := 30000);
+$$);
+```
+- Pravidlá „zlého počasia“ (počas jazdy, kontrola 24 h vopred, jedno upozornenie na jazdu): búrka, sneženie, dážď so snehom, dážď ≥ 1 mm (silný ≥ 5 mm), vietor ≥ 36 km/h alebo nárazy ≥ 54 km/h, ≥ 33 °C.
+- iPhone: upozornenia fungujú len v appke pridanej na plochu (iOS 16.4+).
+
 ## 2. Zapnutie
 
 Vyplň `js/config.js` (Supabase URL a publishable key), ulož do GitHubu – o minútu beží ostrá verzia.
