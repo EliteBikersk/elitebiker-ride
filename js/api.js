@@ -11,7 +11,7 @@
   var me = null;
   // vek a mesto sa nečítajú z tabuľky – vracia ich server len sebe a priateľom (profile_private)
   var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,bike_types,created_at";
-  var BIKE_COLS = "id,user_id,name,catalog_id,url,image,created_at", catP = null;
+  var BIKE_COLS = "id,user_id,name,catalog_id,url,image,type,created_at", catP = null;
 
   // naše hlásenia zo servera (limity, kontroly) ukážeme priamo, ostatné nahradíme zrozumiteľnou vetou
   function fail(error, msg) {
@@ -179,7 +179,7 @@
 
     /* ---------- bicykle: katalóg z elitebiker.sk + vlastné ---------- */
     catalog: function () {
-      if (!catP) catP = sb.from("catalog_bikes").select("id,name,brand,url,image,ebike").order("name").limit(3000).then(function (r) { fail(r.error, "Ponuku bicyklov sa nepodarilo načítať."); return r.data || []; });
+      if (!catP) catP = sb.from("catalog_bikes").select("id,name,brand,url,image,ebike,kind").order("name").limit(3000).then(function (r) { fail(r.error, "Ponuku bicyklov sa nepodarilo načítať."); return r.data || []; });
       return catP.catch(function (e) { catP = null; throw e; });
     },
     bikes: function (ids) {
@@ -187,8 +187,11 @@
       return sb.from("user_bikes").select(BIKE_COLS).in("user_id", ids).order("created_at").then(function (r) { return r.error ? [] : r.data; });
     },
     addBike: function (b) {
-      return sb.from("user_bikes").insert({ name: b.catalog_id ? "" : String(b.name || "").trim(), catalog_id: b.catalog_id || null }).select(BIKE_COLS).single()
+      return sb.from("user_bikes").insert({ name: b.catalog_id ? "" : String(b.name || "").trim(), catalog_id: b.catalog_id || null, type: b.type || null }).select(BIKE_COLS).single()
         .then(function (r) { fail(r.error, "Bicykel sa nepodarilo pridať."); return r.data; });
+    },
+    setBikeType: function (id, type) {
+      return sb.from("user_bikes").update({ type: type }).eq("id", id).select(BIKE_COLS).single().then(function (r) { fail(r.error, "Typ bicykla sa nepodarilo uložiť."); return r.data; });
     },
     deleteBike: function (id) { return sb.from("user_bikes").delete().eq("id", id).then(function (r) { fail(r.error); }); },
 

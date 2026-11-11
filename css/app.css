@@ -1029,3 +1029,17 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .phnudge .grow{min-width:0}
 .phnudge b{display:block;font-size:14px;color:var(--ink)}
 .phnudge small{display:block;font-size:12.5px;color:var(--mu);line-height:1.4}
+/* typ bicykla */
+.bktype{display:inline-flex;align-items:center;gap:5px;margin:4px 0 2px;padding:3px 10px 3px 8px;border-radius:999px;background:var(--lb);border:1px solid var(--lbl);color:var(--b);font-size:12px;font-weight:700;line-height:1.3}
+.bktype svg{width:14px;height:14px;flex:0 0 auto}
+.bktype.none{background:#fff7ed;border-color:#fed7aa;color:#c2410c}
+.row .grow .bktype + small{display:block}
+.btypes{display:grid;gap:8px}
+.btypes button{display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:12px 14px;border-radius:14px;background:#fff;border:1.5px solid var(--ln);color:var(--tx)}
+.btypes button > svg:first-child{width:26px;height:26px;flex:0 0 auto;color:var(--mu)}
+.btypes button span{flex:1;min-width:0}
+.btypes button b{display:block;font-size:14.5px;color:var(--ink)}
+.btypes button small{display:block;font-size:12.5px;color:var(--mu)}
+.btypes button.on{border-color:var(--b);background:var(--lb)}
+.btypes button.on > svg:first-child{color:var(--b)}
+.btypes button > svg:last-child:not(:first-child){color:var(--b);flex:0 0 auto}

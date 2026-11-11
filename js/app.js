@@ -107,7 +107,18 @@
     return null;
   }
   function bikesOf(id) { return S.B[id] || []; }
-  function bikeLine(id) { var b = bikesOf(id)[0]; return b ? '<span class="bkl">' + sz(IC.bike, 13) + "<span>" + esc(b.name) + (bikesOf(id).length > 1 ? " +" + (bikesOf(id).length - 1) : "") + "</span></span>" : ""; }
+  // pri jazde ukážeme bicykel podľa jej typu (podobný typ, ak presný nemá: gravel a cesta, horský a e-bike)
+  var BIKE_MATCH = { cesta: ["cesta", "gravel"], gravel: ["gravel", "cesta"], mtb: ["mtb", "ebike"], ebike: ["ebike", "mtb"], dirt: ["dirt"] };
+  function bikeFor(id, type) {
+    var l = bikesOf(id); if (!type) return l[0] || null;
+    var m = BIKE_MATCH[type] || [type];
+    for (var k = 0; k < m.length; k++) for (var i = 0; i < l.length; i++) if (l[i].type === m[k]) return l[i];
+    return null;
+  }
+  function bikeLine(id, type) {
+    var b = bikeFor(id, type), n = bikesOf(id).length;
+    return b ? '<span class="bkl">' + sz(IC.bike, 13) + "<span>" + esc(b.name) + (!type && n > 1 ? " +" + (n - 1) : "") + "</span></span>" : "";
+  }
   function bikeThumb(b) { return b.image ? '<img src="' + esc(b.image) + '" alt="" loading="lazy">' : sz(IC.bike, 24); }
   function nrm(v) { return String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
   function find(id) { for (var i = 0; i < S.rides.length; i++) if (S.rides[i].id === id) return S.rides[i]; return null; }
@@ -441,8 +452,11 @@
   function vMyBikes() {
     var my = bikesOf(S.uid), add = '<span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.plus, 18) + "</span>";
     return '<div class="sec-h"><b>Moje bicykle</b><small>' + (my.length ? my.length + " z 5" : "uvidia ich kamoši") + '</small></div><div class="card" style="padding:4px 16px">' +
-      my.map(function (b) { return '<div class="row"><span class="bkimg">' + bikeThumb(b) + '</span><div class="grow"><b class="wrap2">' + esc(b.name) + "</b><small>" + (b.url ? '<a class="link-plain" href="' + esc(b.url) + '" target="_blank" rel="noopener">z ponuky elitebiker.sk ↗</a>' : "vlastný bicykel") + '</small></div><button class="btn sm gh" data-act="bike-del" data-id="' + b.id + '" aria-label="Odstrániť bicykel">✕</button></div>'; }).join("") +
-      (my.length < 5 ? '<button type="button" class="row rowbtn" data-act="bike-new">' + add + '<span class="grow"><b style="color:var(--b)">Pridať bicykel</b><small>z ponuky elitebiker.sk alebo vlastný</small></span></button>' : "") + "</div>";
+      my.map(function (b) { var t = TYPES[b.type]; return '<div class="row"><span class="bkimg">' + bikeThumb(b) + '</span><div class="grow"><b class="wrap2">' + esc(b.name) + "</b>" +
+        '<button type="button" class="bktype' + (t ? "" : " none") + '" data-act="bike-type" data-id="' + b.id + '">' + (t ? IC[t[1]] + t[0] : "Vybrať typ bicykla") + "</button>" +
+        "<small>" + (b.url ? '<a class="link-plain" href="' + esc(b.url) + '" target="_blank" rel="noopener">z ponuky elitebiker.sk ↗</a>' : "vlastný bicykel") + '</small></div><button class="btn sm gh" data-act="bike-del" data-id="' + b.id + '" aria-label="Odstrániť bicykel">✕</button></div>'; }).join("") +
+      (my.length < 5 ? '<button type="button" class="row rowbtn" data-act="bike-new">' + add + '<span class="grow"><b style="color:var(--b)">Pridať bicykel</b><small>z ponuky elitebiker.sk alebo vlastný</small></span></button>' : "") + "</div>" +
+      (my.length > 1 || my.some(function (b) { return !b.type; }) ? '<p class="info" style="text-align:left">' + sz(IC.bike, 13) + " Pri jazde sa pri tebe ukáže bicykel podľa typu jazdy.</p>" : "");
   }
   var BK = { q: "", cat: null, eb: false };
   function vBike() {
@@ -468,7 +482,7 @@
     var head = BK.eb ? '<div class="opts" style="margin-top:10px">' + ebChip + "</div>" : "";
     if (!hits.length) return head + '<p class="info" style="text-align:left">V ponuke sme „' + esc(BK.q) + "“ nenašli. Pridaj ho nižšie vlastným názvom.</p>";
     return head + '<div class="card" style="padding:2px 12px;margin-top:10px">' + hits.slice(0, 40).map(function (b) {
-      return '<button type="button" class="row rowbtn" data-act="bike-add" data-c="' + b.id + '"><span class="bkimg">' + bikeThumb(b) + '</span><span class="grow"><b class="wrap2">' + esc(b.name) + "</b><small>" + esc(b.brand || "") + (b.ebike ? " · ⚡ elektrobicykel" : "") + '</small></span><span class="chip lb">Pridať</span></button>'; }).join("") + "</div>" +
+      return '<button type="button" class="row rowbtn" data-act="bike-add" data-c="' + b.id + '"><span class="bkimg">' + bikeThumb(b) + '</span><span class="grow"><b class="wrap2">' + esc(b.name) + "</b><small>" + esc([b.brand || "", TYPES[b.kind] ? TYPES[b.kind][0] : b.ebike ? "E-bike" : ""].filter(Boolean).join(" · ")) + '</small></span><span class="chip lb">Pridať</span></button>'; }).join("") + "</div>" +
       (hits.length > 40 ? '<p class="small-note">Zobrazujem 40 z ' + hits.length + ", spresni hľadanie.</p>" : "");
   }
   function openBike() {
@@ -479,13 +493,39 @@
       e.preventDefault();
       var n = ($("bname").value || "").trim() || BK.q.trim(), b = f.querySelector("button");
       if (n.length < 2) { toast("Napíš názov bicykla."); $("bname").focus(); return; }
-      spin(b); addBike({ name: n }).catch(function () { unspin(b); });
+      openBikeType({ name: n });
     };
     if (window.innerWidth > 700) q.focus();
     if (!BK.cat) api.catalog().then(function (c) { BK.cat = c || []; }, function () { BK.cat = []; }).then(function () { var el = $("bres"); if (el) el.innerHTML = bikeResults(); });
   }
   function addBike(b) {
-    return api.addBike(b).then(function (x) { (S.B[S.uid] = S.B[S.uid] || []).push(x); closeModal(); render(true); toast("🚲 <b>" + esc(x.name) + "</b> je v tvojom profile."); }).catch(function (e) { err(e); throw e; });
+    return api.addBike(b).then(function (x) {
+      (S.B[S.uid] = S.B[S.uid] || []).push(x); closeModal(); render(true);
+      toast("🚲 <b>" + esc(x.name) + "</b> je v tvojom profile" + (TYPES[x.type] ? " ako <b>" + TYPES[x.type][0] + "</b>." : "."));
+    }).catch(function (e) { err(e); throw e; });
+  }
+  function addCatalogBike(id) {
+    var c = (BK.cat || []).filter(function (x) { return x.id === id; })[0];
+    var k = c && (c.kind || (c.ebike ? "ebike" : null));
+    if (k) addBike({ catalog_id: id, type: k }).catch(function () {}); else openBikeType({ catalog_id: id, name: c ? c.name : "" });
+  }
+  // výber typu: pri novom bicykli bez typu z e-shopu alebo pri zmene typu v profile
+  var BT = null, BTYPE_HINT = { cesta: "cestný bicykel", gravel: "gravel a cyklokros", mtb: "hardtail aj celoodpružený", ebike: "bicykel s motorom", dirt: "dirt, BMX, pumptrack" };
+  function openBikeType(o) {
+    BT = o;
+    var cur = o.id ? (bikesOf(S.uid).filter(function (b) { return b.id === o.id; })[0] || {}).type : null;
+    openModal('<div class="sh-top"><button class="icb" data-act="' + (o.id ? "closem" : "bike-new") + '" aria-label="Späť">' + (o.id ? IC.close : IC.back) + "</button><b>Aký je to bicykel?</b></div><div class=\"pad\">" +
+      (o.name ? '<p class="sub" style="margin:2px 0 14px"><b>' + esc(o.name) + "</b></p>" : "") +
+      '<div class="btypes">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-act="bike-type-set" data-v="' + k + '" class="' + (cur === k ? "on" : "") + '">' + IC[TYPES[k][1]] + "<span><b>" + TYPES[k][0] + "</b><small>" + BTYPE_HINT[k] + "</small></span>" + (cur === k ? IC.check : "") + "</button>"; }).join("") + "</div>" +
+      '<p class="info">Pri jazde sa pri tebe ukáže bicykel podľa typu jazdy, napríklad na horskej jazde tvoj horský bicykel.</p></div>');
+  }
+  function setBikeType(k) {
+    var o = BT; if (!o) return;
+    if (!o.id) { addBike({ catalog_id: o.catalog_id || null, name: o.name, type: k }).catch(function () {}); return; }
+    api.setBikeType(o.id, k).then(function (x) {
+      S.B[S.uid] = bikesOf(S.uid).map(function (b) { return b.id === x.id ? x : b; }); closeModal(); render(true);
+      toast("Typ uložený: <b>" + TYPES[k][0] + "</b>.");
+    }).catch(err);
   }
 
   function renderNav() {
@@ -583,7 +623,7 @@
     $("dCount") && ($("dCount").textContent = r.participants.length + (r.max_people ? "/" + r.max_people : ""));
     $("dPeople").innerHTML = (S.fresh === r.id && canInv ? '<div class="fresh"><span class="fi">✅</span><div class="grow"><b>Jazda je uložená</b><small>Pošli odkaz aj kamošom bez appky a pridaj si ju do kalendára.</small><div class="fresh-acts"><button class="btn sm" data-act="ride-link" data-id="' + r.id + '">' + sz(IC.link, 14) + 'Poslať odkaz</button><button class="btn sm gh" data-act="cal" data-id="' + r.id + '">' + sz(IC.cal, 14) + "Do kalendára</button></div></div></div>" : "") +
       '<div class="sec-h"><b>Kto ide</b><small>' + r.participants.length + (pend.length && r.host === S.uid ? " · " + pend.length + " pozvaní" : "") + '</small></div><div class="card" style="padding:4px 16px">' +
-      r.participants.map(function (id) { return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(contactLine(id)) + "</small>" + bikeLine(id) + "</div>" + (id !== S.uid ? callBtn(r.id, id) + contactBtns(id) : "") + "</div>"; }).join("") +
+      r.participants.map(function (id) { return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + (id === S.uid ? "ty" + age(id) : hn(id)) + (id === r.host ? ' <span class="chip lb" style="padding:1px 8px;font-size:10.5px">organizuje</span>' : "") + "</b><small>" + esc(contactLine(id)) + "</small>" + bikeLine(id, r.type) + "</div>" + (id !== S.uid ? callBtn(r.id, id) + contactBtns(id) : "") + "</div>"; }).join("") +
       (r.host === S.uid ? pend.map(function (id) { return '<div class="row" style="opacity:.6">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>pozvaný · zatiaľ sa nepridal</small></div></div>"; }).join("") : "") +
       (canInv ? '<div class="row" style="cursor:pointer" data-act="invmodal" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.plus, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať kamošov</b><small>z tvojej partie</small></div></div>' +
         '<div class="row" style="cursor:pointer" data-act="ride-link" data-id="' + r.id + '"><span class="icb" style="width:38px;height:38px;background:var(--lb);border-color:var(--lbl);color:var(--b)">' + sz(IC.link, 18) + '</span><div class="grow"><b style="color:var(--b)">Pozvať odkazom</b><small>aj tých, čo ešte nemajú appku</small></div></div>' : "") + "</div>";
@@ -1599,7 +1639,9 @@
       case "bike-new": openBike(); break;
       case "bike-brand": BK.q = el.dataset.v; $("bq").value = BK.q; $("bres").innerHTML = bikeResults(); break;
       case "bike-eb": BK.eb = !BK.eb; $("bres").innerHTML = bikeResults(); break;
-      case "bike-add": addBike({ catalog_id: +el.dataset.c }).catch(function () {}); break;
+      case "bike-add": addCatalogBike(+el.dataset.c); break;
+      case "bike-type": openBikeType({ id: id, name: (bikesOf(S.uid).filter(function (b) { return b.id === id; })[0] || {}).name }); break;
+      case "bike-type-set": setBikeType(el.dataset.v); break;
       case "bike-del": if (el.dataset.sure) { api.deleteBike(id).then(function () { S.B[S.uid] = bikesOf(S.uid).filter(function (b) { return b.id !== id; }); render(true); toast("Bicykel odstránený."); }).catch(err); } else { el.dataset.sure = 1; el.textContent = "Odstrániť?"; el.classList.add("danger"); } break;
       case "push-hide": try { localStorage.setItem("eb_push_hide", String(Date.now())); } catch (x) {} render(true); break;
       case "del-sc": api.deleteShortcut(id).then(function () { S.sc = S.sc.filter(function (s) { return s.id !== id; }); render(true); }).catch(err); break;
