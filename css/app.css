@@ -1049,3 +1049,15 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .crop-ov.crop-loading .crop-wait{display:flex}
 .crop-ov.crop-loading .crop-box{display:none}
 .crop-ov.crop-loading .crop-ctl{opacity:.35;pointer-events:none}
+/* výber mesta zo zoznamu obcí */
+.cityw{position:relative}
+.cityw .inp{padding-right:44px}
+.cityok{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#16a34a;display:flex}
+.cityok[hidden]{display:none}
+.cityl{display:grid;gap:0;margin-top:6px;border-radius:14px;overflow:hidden;background:#fff;border:1px solid var(--ln);box-shadow:0 8px 24px rgba(17,19,26,.08)}
+.cityl:empty{display:none}
+.cityi{display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;text-align:left;padding:12px 14px;background:#fff;border:0;border-bottom:1px solid var(--ln);font-size:14.5px;color:var(--ink)}
+.cityi:last-child{border-bottom:0}
+.cityi:active,.cityi:hover{background:var(--lb)}
+.cityi small{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cityno{padding:12px 14px;font-size:13px;color:var(--mu);line-height:1.5;margin:0}

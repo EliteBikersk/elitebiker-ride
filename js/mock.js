@@ -73,6 +73,11 @@
   }
   var D = null;
   function load() { try { D = JSON.parse(localStorage.getItem(KEY)); } catch (e) { D = null; } if (!D) D = seed(); if (!D.bikes) D.bikes = seedBikes(); D.bikes.forEach(function (b) { if (b.type === undefined) { var c = CAT.filter(function (x) { return x.id === b.catalog_id; })[0]; b.type = c ? c.kind : null; } }); }
+  var PLACES = [["Bratislava", null, 48.1486, 17.1077], ["Košice", null, 48.7164, 21.2611], ["Považská Bystrica", "Považská Bystrica", 49.1167, 18.45],
+    ["Považany", "Nové Mesto nad Váhom", 48.7083, 17.8389], ["Púchov", "Púchov", 49.12, 18.3306], ["Žilina", "Žilina", 49.2231, 18.7394], ["Trenčín", "Trenčín", 48.8942, 18.0406],
+    ["Ilava", "Ilava", 48.9994, 18.2361], ["Dubnica nad Váhom", "Ilava", 48.9575, 18.1658], ["Nitra", "Nitra", 48.3147, 18.0875], ["Trnava", "Trnava", 48.3778, 17.5862],
+    ["Banská Bystrica", "Banská Bystrica", 48.7353, 19.1458], ["Martin", "Martin", 49.0636, 18.9214], ["Prievidza", "Prievidza", 48.7714, 18.6242], ["Bytča", "Bytča", 49.2228, 18.5581],
+    ["Horná Lehota", "Brezno", 48.8333, 19.5667], ["Horná Lehota", "Dolný Kubín", 49.2167, 19.3667], ["Lehota pod Vtáčnikom", "Prievidza", 48.6953, 18.6047], ["Udiča", "Považská Bystrica", 49.1667, 18.4]];
   var PHONES = { "u-adam": "+421905111222", "u-peto": "+421915555666", "u-lucia": "+421944333444", "u-marek": "+421908777888" };
   function save() { try { localStorage.setItem(KEY, JSON.stringify(D)); } catch (e) { /* bez úložiska */ } }
   function wait(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 120); }); }
@@ -245,6 +250,12 @@
     },
     pushSave: function (_s, device) { D.push = true; D.pushDev = device || "Toto zariadenie"; save(); return wait(); },
     pushDelete: function () { D.push = false; save(); return wait(); },
+    places: function (q) {
+      var f = function (t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }, k = f(q).trim();
+      if (k.length < 2) return wait([]);
+      return wait(PLACES.filter(function (p) { var n = f(p[0]); return n.indexOf(k) === 0 || n.indexOf(" " + k) > -1; }).slice(0, 12)
+        .map(function (p, i) { return { id: i + 1, name: p[0], okres: p[1], lat: p[2], lng: p[3] }; }));
+    },
     myPhone: function () { return wait(D.phone || null); },
     setPhone: function (phone) { D.phone = phone || null; save(); return wait(); },
     ridePhones: function (rideId) {

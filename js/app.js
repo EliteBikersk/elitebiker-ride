@@ -289,6 +289,56 @@
     if ((v || "") === (el.dataset.orig || "")) return Promise.resolve(true);
     return api.setPhone(v || null).then(function () { S.phone = v || null; S.phonesKey = {}; return true; });
   }
+  // mesto sa vyberá zo zoznamu obcí, aby ho každý napísal rovnako a verejné jazdy v okolí sedeli
+  var CITY = {};
+  function cityField(pre, val) {
+    CITY[pre] = { orig: val || "", pick: null, list: [], t: null, abroad: false };
+    return '<span class="fl">Odkiaľ si</span><div class="cityw"><input class="inp" id="' + pre + '-city" data-city="' + pre + '" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="Začni písať mesto alebo obec" value="' + esc(val || "") + '" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="' + pre + '-cityl">' +
+      '<span class="cityok"' + (val ? "" : " hidden") + ">" + sz(IC.check, 18) + '</span></div><div class="cityl" id="' + pre + '-cityl" role="listbox"></div>' +
+      '<p class="small-note" style="margin:6px 0 0">🔒 Vyber zo zoznamu. Podľa mesta ti ukážeme verejné jazdy do 30 km. Vek a mesto uvidia len tvoji priatelia.</p>';
+  }
+  function cityOk(pre) {
+    var c = CITY[pre], el = $(pre + "-city"); if (!c || !el) return true;
+    var v = el.value.trim();
+    if ((c.pick && c.pick.name === v) || (c.orig && v === c.orig)) return true;
+    toast("Vyber mesto zo zoznamu, nech sa ti ukážu jazdy v okolí.");
+    el.focus(); citySearch(pre, true);
+    return false;
+  }
+  function citySearch(pre, now) {
+    var c = CITY[pre], el = $(pre + "-city"); if (!c || !el) return;
+    clearTimeout(c.t);
+    var q = el.value.trim();
+    var run = function () {
+      if (q.length < 2) { cityList(pre, null); return; }
+      api.places(q).then(function (l) { if ($(pre + "-city") && $(pre + "-city").value.trim() === q) { c.list = l; cityList(pre, l); } });
+    };
+    if (now) run(); else c.t = setTimeout(run, 180);
+  }
+  function cityList(pre, l) {
+    var box = $(pre + "-cityl"), el = $(pre + "-city"); if (!box) return;
+    var dup = {}; (l || []).forEach(function (p) { dup[p.name] = (dup[p.name] || 0) + 1; });
+    box.innerHTML = !l ? "" : l.length ? l.map(function (p, i) {
+      return '<button type="button" class="cityi" role="option" data-act="city-pick" data-pre="' + pre + '" data-i="' + i + '"><b>' + esc(p.name) + "</b>" + (p.okres && (p.okres !== p.name || dup[p.name] > 1) ? "<small>okres " + esc(p.okres) + "</small>" : "") + "</button>";
+    }).join("") : '<p class="cityno">Takú obec sme nenašli. Skontroluj, ako sa píše. <button type="button" class="lnk" data-act="city-abroad" data-pre="' + pre + '">Bývam mimo Slovenska</button></p>';
+    if (el) el.setAttribute("aria-expanded", l && l.length ? "true" : "false");
+  }
+  function cityPick(pre, p) {
+    var c = CITY[pre], el = $(pre + "-city"); if (!c || !el) return;
+    c.pick = p; el.value = p.name; cityList(pre, null);
+    var ok = el.parentNode.querySelector(".cityok"); if (ok) ok.hidden = false;
+  }
+  document.addEventListener("input", function (e) {
+    var t = e.target; if (!t || !t.dataset || !t.dataset.city) return;
+    var pre = t.dataset.city, c = CITY[pre]; if (!c) return;
+    if (c.pick && c.pick.name !== t.value.trim()) c.pick = null;
+    var ok = t.parentNode.querySelector(".cityok"); if (ok) ok.hidden = !((c.pick && c.pick.name === t.value.trim()) || (c.orig && t.value.trim() === c.orig));
+    citySearch(pre);
+  });
+  document.addEventListener("keydown", function (e) {
+    var t = e.target; if (!t || !t.dataset || !t.dataset.city || e.key !== "Enter") return;
+    var c = CITY[t.dataset.city]; if (c && c.list && c.list.length && $(t.dataset.city + "-cityl").children.length && !(c.pick && c.pick.name === t.value.trim())) { e.preventDefault(); cityPick(t.dataset.city, c.list[0]); }
+  });
   function contactFields(pre, u) {
     return '<span class="fl">Kde ti kamoši napíšu? <small style="font-weight:500;color:var(--mu)">stačí jedno</small></span>' +
       '<div class="cfield">' + sz(IC.ig, 18) + '<input class="inp" id="' + pre + '-ig" maxlength="80" autocapitalize="off" autocomplete="off" placeholder="Instagram, napr. martin.rides" value="' + esc(u.ig_username || "") + '"></div>' +
@@ -302,9 +352,8 @@
       '<div class="n">' + esc(u.display_name || "tvoje meno") + '</div><label class="upl">📷 Nahrať profilovú fotku<input type="file" accept="image/*" data-up="avatar" hidden></label></div>' +
       '<form id="onbForm">' +
       '<span class="fl">Meno a priezvisko</span><input class="inp" id="o-name" required maxlength="60" autocomplete="name" placeholder="napr. Martin Novák" value="' + esc(u.display_name || "") + '">' +
-      '<div class="two" style="margin-top:4px"><div><span class="fl">Vek</span><input class="inp" id="o-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '"></div><div><span class="fl">Odkiaľ si</span><input class="inp" id="o-city" maxlength="60" placeholder="mesto alebo obec" required value="' + esc(u.city || "") + '"></div></div>' +
-      '<p class="small-note" style="margin:6px 0 0">🔒 Vek a mesto uvidia len tvoji priatelia.</p>' +
-      '<p class="small-note" style="margin-top:6px">Vek uvidia kamoši pri jazdách, aby vedeli, s kým idú.</p>' +
+      '<span class="fl">Vek</span><input class="inp" id="o-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '" style="max-width:140px">' +
+      cityField("o", u.city) +
       contactFields("o", u) +
       '<p class="small-note" style="margin-top:6px">Uvidia to len prihlásení bikeri, aby ti vedeli napísať napríklad pred jazdou.</p>' +
       phoneField("o") +
@@ -318,9 +367,10 @@
       if (!patch.display_name) { toast("Zadaj svoje meno."); return; }
       if (!(patch.age >= 14 && patch.age <= 99)) { toast("Zadaj vek od 14 do 99 rokov."); return; }
       if (!patch.city) { toast("Napíš, odkiaľ si. Podľa toho uvidíš jazdy v okolí."); $("o-city").focus(); return; }
+      if (!cityOk("o")) return;
       var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
       if (normPhone($("o-tel").value) === null) { toast("Telefónne číslo nevyzerá správne. Napíš ho napríklad 0905 123 456, alebo nechaj prázdne."); $("o-tel").focus(); return; }
-      api.updateProfile(patch).then(function (p) { return savePhone("o").catch(function (x) { err(x); }).then(function () { return p; }); }).then(function (p) { S.me = p; S.P[S.uid] = p; $("onb").classList.add("hide"); render(); afterStart(); autoLocation(p.city); toast("Vitaj v EliteBiker Ride, <b>" + esc(p.display_name.split(" ")[0]) + "</b>!"); }).catch(err);
+      api.updateProfile(patch).then(function (p) { return savePhone("o").catch(function (x) { err(x); }).then(function () { return p; }); }).then(function (p) { S.me = p; S.P[S.uid] = p; $("onb").classList.add("hide"); render(); afterStart(); autoLocation(p.city, CITY.o && CITY.o.pick); toast("Vitaj v EliteBiker Ride, <b>" + esc(p.display_name.split(" ")[0]) + "</b>!"); }).catch(err);
     };
   }
 
@@ -410,8 +460,8 @@
       (fbUrl(S.uid) ? '<a class="btn sm gh" href="' + esc(fbUrl(S.uid)) + '" target="_blank" rel="noopener">' + sz(IC.fb, 14) + esc(fbLabel(S.uid)) + "</a>" : "") +
       (S.phone ? '<span class="btn sm gh nolink" title="Vidia ho len spolujazdci">' + sz(IC.phone, 14) + esc(fmtPhone(S.phone)) + "</span>" : "") + "</div></div>";
     if (S.editing) html += '<form class="card" id="editForm" style="margin-top:14px"><span class="fl" style="margin-top:0">Meno a priezvisko</span><input class="inp" id="e-name" required maxlength="60" value="' + esc(u.display_name || "") + '">' +
-      '<div class="two"><div><span class="fl">Vek</span><input class="inp" id="e-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '"></div><div><span class="fl">Odkiaľ si</span><input class="inp" id="e-city" maxlength="60" placeholder="mesto alebo obec" value="' + esc(u.city || "") + '"></div></div>' +
-      '<p class="small-note" style="margin:6px 0 0">🔒 Vek a mesto vidia len tvoji priatelia.</p>' +
+      '<span class="fl">Vek</span><input class="inp" id="e-age" type="number" min="14" max="99" required value="' + esc(u.age || "") + '" style="max-width:140px">' +
+      cityField("e", u.city) +
       contactFields("e", u) + phoneField("e") +
       '<span class="fl">Na čom jazdíš?</span><div class="opts" id="e-types">' + Object.keys(TYPES).map(function (k) { return '<button type="button" data-act="toggle-on" data-v="' + k + '" class="' + ((u.bike_types || []).indexOf(k) > -1 ? "on" : "") + '">' + IC[TYPES[k][1]] + TYPES[k][0] + "</button>"; }).join("") + "</div>" +
       '<div style="display:flex;gap:8px;margin-top:16px"><button class="btn gh" type="button" data-act="edit">Zrušiť</button><button class="btn" style="flex:1" type="submit">Uložiť</button></div></form>';
@@ -560,9 +610,10 @@
         bike_types: [].slice.call(document.querySelectorAll("#e-types .on")).map(function (b) { return b.dataset.v; }) };
       if (!patch.display_name) { toast("Zadaj svoje meno."); return; }
       if (!(patch.age >= 14 && patch.age <= 99)) { toast("Vek musí byť od 14 do 99 rokov."); return; }
+      if (patch.city && !cityOk("e")) return;
       var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
       if (normPhone($("e-tel").value) === null) { toast("Telefónne číslo nevyzerá správne. Napíš ho napríklad 0905 123 456."); $("e-tel").focus(); return; }
-      api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; return savePhone("e"); }).then(function (ok) { if (!ok) return; S.editing = false; render(true); toast("Profil uložený."); autoLocation(S.me.city); }).catch(err);
+      api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; return savePhone("e"); }).then(function (ok) { if (!ok) return; S.editing = false; render(true); toast("Profil uložený."); autoLocation(S.me.city, CITY.e && CITY.e.pick); }).catch(err);
     };
     if (S.tab === "club" && !S.pts && !S.ptsLoading) { S.ptsLoading = true; api.points().then(function (s) { S.pts = s || { joined: 0, hosted: 0, photos: 0, bonus: 0, spent: 0, earned: 0, balance: 0, history: [] }; S.ptsLoading = false; if (S.tab === "club") render(true); }).catch(function (e) { S.ptsLoading = false; err(e); }); }
   }
@@ -1521,8 +1572,13 @@
 
   /* ---------------- poloha pre verejné jazdy = mesto z profilu ---------------- */
   // verejné jazdy do 30 km sa rátajú od mesta v profile (stred mesta, nie presná poloha)
-  function autoLocation(city) {
+  function autoLocation(city, pick) {
     city = String(city || "").trim();
+    if (pick && pick.lat != null && pick.name === city) {
+      if (S.loc && S.loc.label === city && Math.abs(S.loc.lat - pick.lat) < .02 && Math.abs(S.loc.lng - pick.lng) < .02) return;
+      api.setLocation({ lat: pick.lat, lng: pick.lng, label: city }).then(function (x) { S.loc = x; return loadAll(); }).then(function () { render(true); }).catch(function () {});
+      return;
+    }
     if (!window.EBMap) return;
     if (!city) { if (S.loc) api.clearLocation().then(function () { S.loc = null; return loadAll(); }).then(function () { render(true); }).catch(function () {}); return; }
     if (S.loc && S.loc.label === city) return;
@@ -1603,6 +1659,8 @@
       case "more": saveD(); D.more = el.classList.contains("open") ? "closed" : true; drawCreate(true); break;
       case "create": openCreate(); break;
       case "edit-ride": openEdit(id); break;
+      case "city-pick": cityPick(el.dataset.pre, CITY[el.dataset.pre].list[+el.dataset.i]); break;
+      case "city-abroad": (function (pre) { var v = $(pre + "-city").value.trim(); if (v.length < 2) { toast("Napíš názov mesta."); return; } CITY[pre].pick = { name: v, abroad: true }; cityList(pre, null); var ok = $(pre + "-city").parentNode.querySelector(".cityok"); if (ok) ok.hidden = false; toast("Dobre, polohu nájdeme podľa názvu mesta."); })(el.dataset.pre); break;
       case "add-phone": closeModal(); if ($("sheet").classList.contains("open")) closeSheet(); S.tab = "profile"; S.editing = true; render(); setTimeout(function () { var t = $("e-tel"); if (t) { t.scrollIntoView({ block: "center" }); t.focus(); } }, 120); break;
       case "edit-back": if (fmap) { fmap.remove(); fmap = null; } openRide(id); break;
       case "pref": togglePref(el.dataset.k); break;

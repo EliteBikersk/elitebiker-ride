@@ -199,6 +199,8 @@
     location: function () {
       return sb.from("user_locations").select("lat,lng,label").eq("user_id", me.id).maybeSingle().then(function (r) { return r.error ? null : r.data; });
     },
+    // obce Slovenska pre výber mesta (hľadá sa bez ohľadu na diakritiku)
+    places: function (q) { return sb.rpc("search_places", { q: q }).then(function (r) { return r.error ? [] : r.data || []; }); },
     setLocation: function (l) {
       var row = { user_id: me.id, lat: Math.round(l.lat * 100) / 100, lng: Math.round(l.lng * 100) / 100, label: String(l.label || "").slice(0, 80) || null };
       return sb.from("user_locations").upsert(row).select("lat,lng,label").single().then(function (r) { fail(r.error, "Polohu sa nepodarilo uložiť."); return r.data; });
