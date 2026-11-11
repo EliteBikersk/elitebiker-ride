@@ -537,7 +537,8 @@ textarea.inp{resize:vertical;min-height:64px;font-family:inherit}
 .login{display:flex;flex-direction:column;min-height:100%;gap:28px}
 /* na mobile celé prihlásenie vo zvislom strede (automatické okraje: pri nízkom displeji sa nič neodreže hore) */
 .login-hero{margin-top:auto}
-.login-box{margin-bottom:auto}
+.login-box{margin-bottom:auto;margin-top:clamp(16px,6vh,56px)}
+@media (max-height:700px){.login-box{margin-top:0}}
 .seg{display:grid;grid-template-columns:1fr 1fr;background:var(--sf);border:1px solid var(--ln);border-radius:999px;padding:4px}
 .seg button{border-radius:999px;padding:10px 6px;font-weight:700;font-size:14px;color:var(--mu)}
 .seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(17,19,26,.12)}
@@ -600,9 +601,7 @@ input,select,textarea{min-width:0}
   .mp-card .row2 .btn.gh{flex:1 1 0;min-width:0;padding:10px 6px}
   .mp-card .row2 .btn:not(.gh){flex:1 0 100%}
 }
-@media (min-width:600px) and (max-width:1023px){
-  .login-box{margin-top:6px}
-}
+
 /* telefón na šírku */
 @media (max-height:500px) and (orientation:landscape){
   .mp{flex-direction:row}
