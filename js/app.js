@@ -365,7 +365,8 @@
       return '<div class="row prow" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + hn(id) + "</b><small>" + (next ? '<span class="live">jazdí ' + dShort(next.starts_at).toLowerCase() + " " + hm(next.starts_at) + "</span>" : esc([contactLine(id), p.city].filter(Boolean).join(" · "))) + "</small>" + bikeLine(id) + "</div>" +
         (next ? '<button class="btn sm gh" data-act="open" data-id="' + next.id + '">Jazda</button>' : "") + contactBtns(id) + "</div>"; }).join("") + "</div>";
     if (S.fr.outgoing.length) html += '<div class="sec-h"><b>Čakajú na potvrdenie</b><small>' + S.fr.outgoing.length + '</small></div><div class="card" style="padding:4px 16px">' + S.fr.outgoing.map(function (id) {
-      return '<div class="row prow" style="opacity:.7" data-act="person" data-u="' + id + '">' + pic(id) + '<div class="grow"><b>' + hn(id) + '</b><small>žiadosť odoslaná</small></div><button class="btn sm gh" data-act="unfriend" data-u="' + id + '">Zrušiť</button></div>'; }).join("") + "</div>";
+      return '<div class="row prow" data-act="person" data-u="' + id + '">' + '<span style="opacity:.7">' + pic(id) + '</span><div class="grow" style="opacity:.75"><b>' + hn(id) + '</b><small>čaká</small></div><button class="btn sm" data-act="invite-link" title="Poslať pozývací odkaz">' + sz(IC.link, 14) + 'Odkaz</button><button class="btn sm gh" data-act="unfriend" data-u="' + id + '">Zrušiť</button></div>'; }).join("") + "</div>" +
+      '<p class="info" style="text-align:left">' + sz(IC.link, 13) + " Pošli im svoj pozývací odkaz. Keď ho otvoria, ste hneď v partii, bez potvrdzovania.</p>";
     return html + "</div>";
   }
   function qResults() {
@@ -1709,7 +1710,7 @@
     var p = new URLSearchParams(location.search), poz = p.get("pozvanka");
     var kind = poz ? "invite" : location.hash.indexOf("#jazda-") === 0 ? "ride" : "open";
     if (poz && /^[A-Za-z0-9_-]{6,40}$/.test(poz)) { try { localStorage.setItem("eb_pozvanka", poz); } catch (e) {} }
-    if (poz) { p.delete("pozvanka"); history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash); }
+    var dropPoz = function () { if (!poz) return; var q = new URLSearchParams(location.search); q.delete("pozvanka"); history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash); };
     if (p.get("pridaj")) { p.delete("pridaj"); history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash); }
     ["app", "stage"].forEach(function (k) { var el = $(k) || document.querySelector("." + k); if (el) el.addEventListener("scroll", function () { if (el.scrollLeft || el.scrollTop) { el.scrollLeft = 0; el.scrollTop = 0; } }); });
     var sm = new MutationObserver(function () { var o = $("sheet").classList.contains("open") || $("modal").classList.contains("open"); $("scrim").classList.toggle("on", o); });
@@ -1719,6 +1720,7 @@
       var msg = r.message;
       if (msg) toast(esc(msg));
       if (!r.user) { renderLogin(); return; }
+      dropPoz();
       S.uid = r.user.id;
       $("onb").innerHTML = '<div class="load"><div class="spin"></div>Načítavam…</div>';
       return loadAll().then(function () {

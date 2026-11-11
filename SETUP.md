@@ -93,6 +93,7 @@ insert into private.admins (user_id) values ('<uuid z Authentication → Users>'
 - **Zmazanie účtu** v Profile zmaže profil, bicykle, jazdy, správy a fotky.
 - **Upozornenia do mobilu**: žiadosti o priateľstvo, pozvánky na jazdy, kto sa pridal k jazde, zlé počasie. Čo komu chodí, rozhoduje `notify_prefs` (výber v Profile) cez `private.wants()`.
 - **Telefón** je v `user_phones` (vidí ho len vlastník); spolujazdcom ho vráti len `ride_phones(p_ride)`, a to len účastníkovi jazdy, kým jazda neskončí.
+- **Pozývací odkaz** `?pozvanka=KÓD`: kód ostáva v adrese, kým sa človek neprihlási, a pri registrácii sa uloží k účtu (`raw_user_meta_data.pozvanka`). Keď si nový biker prvýkrát vyplní meno, trigger `profile_invite` zavolá `private.redeem_invite_for` a spojí ho do partie s tým, kto pozval (aj na jazdu, ak išlo o odkaz na jazdu). Funguje to aj vtedy, keď sa kód v prehliadači stratí (Instagram, Safari, appka na ploche). Prihlásený, ktorý odkaz otvorí, je v partii hneď (`redeem_invite`), aj keď už mal čakajúcu žiadosť.
 - **Úprava jazdy**: organizátor môže meniť vybrané stĺpce (`ride_guard` kontroluje čas, limit ľudí a skončenú jazdu).
 
 ## Prečo nie Instagram / Strava prihlásenie (10. 11. 2026)

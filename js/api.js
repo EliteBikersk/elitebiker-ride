@@ -31,6 +31,9 @@
       return r.data;
     });
   }
+  // kód z pozývacieho odkazu sa pri registrácii uloží k účtu, server ho uplatní, aj keď sa v prehliadači stratí
+  function inviteCode() { var c = null; try { c = localStorage.getItem("eb_pozvanka"); } catch (e) {} if (!c) c = new URLSearchParams(location.search).get("pozvanka"); return c && /^[A-Za-z0-9_-]{6,40}$/.test(c) ? c : null; }
+  function signupData(extra) { var d = extra || {}, c = inviteCode(); if (c) d.pozvanka = c; return d; }
   function backUrl() { var c = null; try { c = localStorage.getItem("eb_pozvanka"); } catch (e) {} return C.APP_URL + (c ? "?pozvanka=" + encodeURIComponent(c) : ""); }
   function linkError() {
     var h = new URLSearchParams(location.hash.replace(/^#/, "")), e = h.get("error_description") || h.get("error");
@@ -85,7 +88,7 @@
     onAuth: function (cb) { sb.auth.onAuthStateChange(function (_e, s) { me = s ? s.user : null; cb(me); }); },
     userId: function () { return me && me.id; },
     loginEmail: function (email) {
-      return sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: backUrl() } }).then(function (r) {
+      return sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: backUrl(), data: signupData() } }).then(function (r) {
         if (r.error && /rate|security purposes|seconds/i.test(r.error.message)) throw new Error("E-mail sme ti poslali len pred chvíľou. Skús to o minútu.");
         fail(r.error, "E-mail sa nepodarilo odoslať. Skús to o chvíľu.");
       });
@@ -100,7 +103,7 @@
       });
     },
     signUp: function (email, password) {
-      return sb.auth.signUp({ email: email, password: password, options: { emailRedirectTo: backUrl(), data: { has_password: true } } }).then(function (r) {
+      return sb.auth.signUp({ email: email, password: password, options: { emailRedirectTo: backUrl(), data: signupData({ has_password: true }) } }).then(function (r) {
         if (r.error) {
           if (/registered|exists/i.test(r.error.message)) throw new Error("Tento e-mail už má účet, prihlás sa.");
           if (/rate|security purposes|seconds/i.test(r.error.message)) throw new Error("Príliš veľa pokusov. Skús to o minútu.");
