@@ -170,14 +170,14 @@
     load();
   }
   function load() {
-    Promise.all([rpc("admin_metrics", { p_days: A.days }), A.names ? Promise.resolve(A.names) : rpc("admin_names")]).then(function (x) {
-      A.m = x[0]; A.names = x[1] || []; draw();
+    Promise.all([rpc("admin_metrics", { p_days: A.days }), A.names ? Promise.resolve(A.names) : rpc("admin_names"), rpc("admin_reports").catch(function () { return null; })]).then(function (x) {
+      A.m = x[0]; A.names = x[1] || []; A.rep = x[2]; draw();
     }).catch(err);
   }
   function draw() {
     var m = A.m, u = m.users, ac = m.active, v = m.visits, r = m.rides, so = m.social;
     var since = m.since ? "Údaje o aktivite zbierame od " + d(m.since + "T12:00:00") + "." : "Údaje o aktivite sa začnú zbierať s prvým otvorením appky.";
-    var html = '<p class="adm-lead">Súhrnné čísla o používaní appky. Osobné údaje používateľov tu nie sú, len poradie a mená. ' + since + "</p>" +
+    var html = '<p class="adm-lead">Súhrnné čísla o používaní appky. Osobné údaje používateľov tu nie sú, len poradie a mená. ' + since + "</p>" + vReports() +
       '<h2 class="adm-h2">Dnes</h2><section class="adm-stats s4">' +
         tile("Aktívni dnes", n(ac.today), "prihlásení, čo appku otvorili") + tile("Otvorenia appky", n(v.today), "aj neprihlásení") +
         tile("Noví používatelia", n(u.today), "zaregistrovaní dnes") + tile("Používatelia spolu", n(u.total), "+" + n(u.d7) + " za 7 dní") + "</section>" +
@@ -206,6 +206,22 @@
     drawNames(); drawChart();
     var q = $("nq"); q.oninput = function () { A.q = q.value; drawNames(); };
   }
+  // nahlásenia: čo bolo nahlásené a prečo; kto nahlásil, sa neukazuje
+  var REASON = { obsah: "Nevhodný obsah", spam: "Spam alebo reklama", obtazovanie: "Obťažovanie", nebezpecne: "Nebezpečné alebo falošné", ine: "Iný dôvod" };
+  function vReports() {
+    if (!A.rep) return "";
+    var open = A.rep.filter(function (x) { return x.status === "open"; }), done = A.rep.filter(function (x) { return x.status !== "open"; });
+    var row = function (x) {
+      return '<li class="' + (x.status === "open" ? "open" : "") + '"><div class="what">' + (x.kind === "ride" ? "🚴 Jazda <b>" + esc(x.ride_title || "bez názvu") + "</b>" : "👤 Účet <b>" + esc(x.target_name || "zmazaný účet") + "</b>") + "</div>" +
+        '<div class="why"><span class="tag">' + esc(REASON[x.reason] || x.reason) + "</span>" + (x.note ? "<q>" + esc(x.note) + "</q>" : "") + "</div>" +
+        '<div class="meta">' + d(x.created_at) + (x.kind === "ride" ? (x.ride_live ? " · jazda ešte len bude" : " · jazda už skončila alebo bola zrušená") : "") + "</div>" +
+        (x.status === "open" ? '<div class="acts">' + (x.kind === "ride" && x.ride_live && x.ride_id ? '<button class="btn sm gh" data-a="rep-cancel" data-id="' + x.id + '" data-r="' + esc(x.ride_id) + '">Zrušiť jazdu</button>' : "") + '<button class="btn sm" data-a="rep-done" data-id="' + x.id + '">Vybavené</button></div>' : "") + "</li>";
+    };
+    return '<section class="adm-card adm-rep"><h3>Nahlásenia <small>' + (open.length ? n(open.length) + " na vybavenie" : "nič nové") + "</small></h3>" +
+      (open.length ? '<ul class="adm-reps">' + open.map(row).join("") + "</ul>" : '<p class="adm-empty">Žiadne nové nahlásenia. Keď niekto nahlási jazdu alebo účet, uvidíš to tu.</p>') +
+      (done.length ? '<details class="adm-done"><summary>Vybavené (' + n(done.length) + ')</summary><ul class="adm-reps">' + done.map(row).join("") + "</ul></details>" : "") + "</section>";
+  }
+  function reloadReports() { return rpc("admin_reports").then(function (l) { A.rep = l || []; draw(); }); }
   function kv(k, v) { return '<div class="adm-kv"><span>' + k + "</span><b>" + v + "</b></div>"; }
   function hbars(rows) {
     var mx = Math.max.apply(null, rows.map(function (x) { return x[1]; }).concat([1]));
@@ -266,12 +282,22 @@
       case "reload": A.names = null; $("dash").innerHTML = '<div class="adm-load"><div class="spin"></div>Načítavam…</div>'; load(); break;
       case "metric": A.metric = el.dataset.v; draw(); break;
       case "table": A.table = !A.table; draw(); break;
+      case "rep-done": spin(el); rpc("admin_report_done", { p_id: +el.dataset.id }).then(reloadReports).then(function () { toast("Označené ako vybavené."); }).catch(function (x) { unspin(el); err(x); }); break;
+      case "rep-cancel":
+        if (!el.dataset.sure) { el.dataset.sure = 1; el.textContent = "Naozaj zrušiť jazdu?"; el.classList.add("danger"); break; }
+        (function () { var x = (A.rep || []).filter(function (y) { return String(y.id) === el.dataset.id; })[0]; spin(el);
+          rpc("admin_delete_ride", { p_ride: el.dataset.r, p_reason: "Nahlásenie: " + (x ? REASON[x.reason] || x.reason : "") })
+            .then(function () { return rpc("admin_report_done", { p_id: +el.dataset.id }); }).then(reloadReports).then(function () { toast("Jazda je zrušená a nahlásenie vybavené."); })
+            .catch(function (y) { unspin(el); err(y); }); })();
+        break;
       case "days": A.days = +el.dataset.v; rpc("admin_metrics", { p_days: A.days }).then(function (m) { A.m = m; draw(); }).catch(err); break;
     }
   });
 
   /* ---------- skúšobný režim (bez servera) ---------- */
   var Demo = {
+    rep: [{ id: 2, created_at: new Date().toISOString(), kind: "ride", ride_id: "r-demo", ride_title: "Predaj bicyklov lacno, píšte", target_name: null, reason: "spam", note: "Nie je to jazda, len reklama.", status: "open", ride_live: true },
+      { id: 1, created_at: new Date(Date.now() - 3 * 864e5).toISOString(), kind: "user", ride_id: null, ride_title: null, target_name: "Test Účet", reason: "obtazovanie", note: null, status: "done", ride_live: false }],
     names: ["Martin Markovič", "Adam Kováč", "Lucia Malá", "Peter Horváth", "Jana Nováková", "Tomáš Baláž", "Marek Varga", "Zuzana Tóthová", "Michal Kollár", "Eva Šimková", "Juraj Lukáč", "Simona Králiková"],
     rpc: function (name, a) {
       var wait = function (v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 150); }); };
@@ -289,6 +315,9 @@
           rides: { upcoming: 5, public_upcoming: 2, created_d7: 4, created_d30: 15, joins_d30: 23, avg_people_d30: 3.4, by_type_d30: { mtb: 7, cesta: 4, gravel: 2, ebike: 2 } },
           social: { friendships: 19, pending: 3, push_users: 7, invites_d30: 11 }, series: series });
       }
+      if (name === "admin_reports") return wait(Demo.rep);
+      if (name === "admin_report_done") { Demo.rep.forEach(function (x) { if (x.id === a.p_id) x.status = "done"; }); return wait(null); }
+      if (name === "admin_delete_ride") { Demo.rep.forEach(function (x) { if (x.ride_id === a.p_ride) x.ride_live = false; }); return wait(null); }
       return Promise.reject(new Error("neznáme volanie " + name));
     }
   };

@@ -15,7 +15,7 @@
     return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
   }
   function P(id, ig, fb, name, age, city, bikes, look) {
-    return { id: id, ig_username: ig, fb_name: fb, display_name: name, age: age, city: city, bike_types: bikes, avatar_url: face(look) };
+    return { id: id, ig_username: ig, fb_name: fb, display_name: name, age: null, city: city, bike_types: bikes, avatar_url: face(look) };
   }
   function seed() {
     var H = 36e5, D = 864e5, now = Date.now();
@@ -51,6 +51,9 @@
     rides[3].visibility = "private"; rides[3].allow_invites = false;
     // verejné jazdy cudzích bikerov – vidno ich len do 30 km od nastavenej polohy
     rides.push(R("r6", "u-zuza", "mtb", "Večerný okruh Strážov pre všetkých", at(3, 17, 30), 2, { lat: 49.1063, lng: 18.4428, label: "Parkovisko pod Strážovom, Považská Bystrica" }, null, 22, "pohoda", ["u-zuza", "u-rasto"], [], "Pridať sa môže hocikto, ideme pomaly. Svetlá povinné.", [], "public"));
+    // dnešná jazda o pár hodín: na skúšku tlačidiel „Som na mieste“, „Meškám“, „Nestihnem“
+    var soon = new Date(Math.ceil((now + 2.5 * H) / (15 * 6e4)) * 15 * 6e4).toISOString();
+    rides.push(R("r8", "u-peto", "mtb", "Po práci okolo Váhu", soon, 2, MOST, null, 18, "pohoda", ["u-peto", "me", "u-adam"], ["me", "u-adam"], "Ľahký okruh, kým je svetlo.", [{ user_id: "u-adam", body: "Beriem aj svetlá.", created_at: new Date(now - H).toISOString() }]));
     rides.push(R("r7", "u-rasto", "gravel", "Gravel okolo Bratislavy", at(4, 10), 4, { lat: 48.1486, lng: 17.1077, label: "Eurovea, Bratislava" }, null, 60, "stredne", ["u-rasto"], [], "", [], "public"));
     return { profiles: profiles, friends: F, incoming: ["u-rasto"], outgoing: [], shortcuts: [
       { id: "s1", name: "MTB partia", emoji: "🏔️", members: ["u-adam", "u-peto", "u-marek"] },
@@ -126,7 +129,7 @@
     isAdmin: function () { return wait(false); },
     me: function () { return wait(copy(D.me)); },
     profile: function (id) { return wait(copy(prof(id))); },
-    // vek a mesto len pre priateľov (ako na serveri)
+    // mesto len pre priateľov (ako na serveri)
     profiles: function (ids) { return wait(ids.map(prof).filter(Boolean).map(copy).map(function (p) { if (p.id !== "me" && D.friends.indexOf(p.id) < 0) { p.age = null; p.city = null; } return p; })); },
     updateProfile: function (p) {
       if (p.ig_username) { for (var i = 0; i < D.profiles.length; i++) if (D.profiles[i].ig_username === p.ig_username) return Promise.reject(new Error("Toto Instagram meno už má niekto iný.")); }
@@ -204,7 +207,7 @@
     leaveRide: function (id) { var r = ride(id); r.participants = r.participants.filter(function (x) { return x !== "me"; }); changed(); return wait(); },
     invite: function (id, ids) { var r = ride(id); ids.forEach(function (u) { if (r.audience.indexOf(u) < 0) r.audience.push(u); }); changed();
       setTimeout(function () { if (r.participants.indexOf(ids[0]) < 0) { r.participants.push(ids[0]); changed(); } }, 3500); return wait(); },
-    messages: function (id) { var r = ride(id); return wait(new Date(r.ends_at) > new Date() && r.participants.indexOf("me") > -1 ? copy(r.messages) : []); },
+    messages: function (id) { var r = ride(id), bl = D.blocks || []; return wait(new Date(r.ends_at) > new Date() && r.participants.indexOf("me") > -1 ? copy(r.messages).filter(function (m) { return bl.indexOf(m.user_id) < 0; }) : []); },
     sendMessage: function (id, body) {
       var r = ride(id), m = { user_id: "me", body: body, created_at: new Date().toISOString() }; r.messages.push(m); save();
       (chatL[id] || []).forEach(function (f) { f(m); });
@@ -265,6 +268,24 @@
       return wait(m);
     },
     track: function () { return wait(); },
+    rideStatus: function (id, st) {
+      var r = ride(id), now = Date.now();
+      if (!r || r.participants.indexOf("me") < 0) return Promise.reject(new Error("Na tejto jazde nie si."));
+      if (new Date(r.ends_at).getTime() < now || new Date(r.starts_at).getTime() > now + 864e5) return Promise.reject(new Error("Stav sa dá poslať len v deň jazdy."));
+      var m = { id: "m" + now, user_id: "me", kind: "status", body: st === "here" ? "📍 Som na mieste" : st === "late" ? "⏱️ Meškám asi 10 minút" : "❌ Nestihnem to, dnes bez mňa", created_at: new Date().toISOString() };
+      r.messages.push(m); (chatL[id] || []).forEach(function (f) { f(m); });
+      var left = st === "cant" && r.host !== "me";
+      if (left) r.participants = r.participants.filter(function (x) { return x !== "me"; });
+      changed(); return wait({ ok: true, left: left });
+    },
+    report: function () { return wait(); },
+    blocks: function () { return wait((D.blocks || []).slice()); },
+    block: function (id) {
+      D.blocks = D.blocks || []; if (D.blocks.indexOf(id) < 0) D.blocks.push(id);
+      ["friends", "incoming", "outgoing"].forEach(function (k) { D[k] = D[k].filter(function (x) { return x !== id; }); });
+      changed(); return wait();
+    },
+    unblock: function (id) { D.blocks = (D.blocks || []).filter(function (x) { return x !== id; }); changed(); return wait(); },
     prefs: function () { return wait(D.prefs ? D.prefs.slice() : null); },
     savePrefs: function (push) { D.prefs = push.slice(); save(); return wait(); },
     pushDevices: function () { return wait(D.push ? [{ endpoint: "demo", device: D.pushDev || "Toto zariadenie", created_at: new Date().toISOString(), last_status: 201, last_at: new Date().toISOString() }] : []); },

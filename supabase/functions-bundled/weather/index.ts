@@ -59,7 +59,7 @@ export async function readJson(req: Request): Promise<Record<string, unknown>> {
 }
 
 // ---- počasie ----
-// Predpoveď počasia z MET Norway (yr.no) – zadarmo aj na komerčné použitie, CC BY 4.0.
+// Predpoveď počasia z MET Norway (yr.no), zadarmo aj na komerčné použitie, CC BY 4.0.
 // https://api.met.no/weatherapi/locationforecast/2.0/documentation
 
 export type Pt = { t: number; dur: number; temp: number | null; wind: number | null; gust: number | null; sym: string; pr: number; pop: number | null; thu: number | null };

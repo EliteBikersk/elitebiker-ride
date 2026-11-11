@@ -1061,3 +1061,51 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .cityi:active,.cityi:hover{background:var(--lb)}
 .cityi small{font-size:12px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cityno{padding:12px 14px;font-size:13px;color:var(--mu);line-height:1.5;margin:0}
+
+/* v deň jazdy: som na mieste, meškám, nestihnem */
+.stbox{margin-top:12px;background:#fff;border:1.5px solid var(--lbl);border-radius:16px;padding:12px 14px}
+.stbox>b{display:block;font-size:14.5px;color:var(--ink)}
+.stbox>small{display:block;font-size:12.5px;color:var(--mu);line-height:1.4;margin-top:2px}
+.stbtns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.stb{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border-radius:14px;background:var(--sf);border:1.5px solid var(--ln);font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.2;text-align:center;min-height:64px;justify-content:center}
+.stb i{font-style:normal;font-size:20px;line-height:1}
+.stb.on{border-color:var(--b);background:var(--lb);color:var(--b)}
+.stb.danger{background:#fff5f5}
+.stb:disabled{opacity:.6}
+.cst{text-align:center;font-size:12.5px;color:var(--tx);background:var(--lb);border:1px solid var(--lbl);border-radius:999px;padding:6px 12px;margin:0 auto 12px;width:fit-content;max-width:100%}
+.cst b{color:var(--ink)}
+.cst small{color:var(--mu);margin-left:4px}
+
+/* nahlásenie a blokovanie */
+.rfoot{text-align:center;margin:22px 0 4px}
+.rfoot .lnk,.pmore .lnk{color:var(--mu);font-weight:600;font-size:13px}
+.pmore{display:flex;justify-content:center;gap:8px;align-items:center;margin-top:20px;color:var(--li);font-size:13px}
+.rsn{display:flex;flex-direction:column;gap:6px}
+.rsn button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1.5px solid var(--ln);border-radius:14px;padding:12px 14px;font-size:14px;font-weight:600;color:var(--ink)}
+.rsn .rd{flex:0 0 auto;width:20px;height:20px;border-radius:999px;border:2px solid #c3c9d6}
+.rsn button.on{border-color:var(--b);background:var(--lb)}
+.rsn button.on .rd{border:6px solid var(--b)}
+.btn.blk{background:#b00020;color:#fff}
+
+/* nový biker: pozvi kamošov a verejné jazdy v okolí */
+.welcome{background:#fff;border:1.5px solid var(--lbl);border-radius:20px;padding:16px;margin-top:12px;box-shadow:0 8px 24px rgba(27,70,229,.08)}
+.wtop{display:flex;gap:12px;align-items:flex-start;margin-bottom:14px}
+.wic{font-size:28px;line-height:1;flex:0 0 auto}
+.wtop b{display:block;font-size:17px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+.wtop small{display:block;font-size:13px;color:var(--mu);line-height:1.45;margin-top:3px}
+.btn.big{padding:16px;font-size:16px;min-height:54px;box-shadow:0 10px 22px rgba(27,70,229,.28)}
+.pubhead{display:flex;gap:10px;align-items:flex-start;margin-top:18px;padding:12px 14px;border-radius:16px;background:#ecfdf5;border:1px solid #bbf7d0}
+.pubhead i{font-style:normal;font-size:20px;line-height:1.2}
+.pubhead b{display:block;font-size:14.5px;color:var(--ink)}
+.pubhead small{display:block;font-size:12.5px;color:var(--mu);line-height:1.4;margin-top:2px}
+
+/* trasa z GPX */
+.gpxbtn{display:flex;align-items:center;gap:10px;margin-top:8px;padding:10px 14px;border-radius:14px;border:1.5px dashed var(--lbl);background:#fbfcff;color:var(--b);cursor:pointer}
+.gpxbtn svg{flex:0 0 auto}
+.gpxbtn b{display:block;font-size:13.5px;color:var(--b)}
+.gpxbtn small{display:block;font-size:12px;color:var(--mu)}
+
+/* slabý signál */
+.offbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 16px 0;padding:9px 12px;border-radius:12px;background:#fff7e6;border:1px solid #f6d9a8;color:#7a4a07;font-size:12.5px;line-height:1.4}
+.offbar span{flex:1;min-width:160px}
+.offbar .lnk{color:#7a4a07;font-size:12.5px}

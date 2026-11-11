@@ -9,7 +9,7 @@
     auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
   });
   var me = null;
-  // vek a mesto sa nečítajú z tabuľky – vracia ich server len sebe a priateľom (profile_private)
+  // mesto sa nečíta z tabuľky, vracia ho server len sebe a priateľom (profile_private)
   var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,bike_types,created_at";
   var BIKE_COLS = "id,user_id,name,catalog_id,url,image,type,created_at", catP = null;
 
@@ -41,13 +41,13 @@
     history.replaceState(null, "", location.pathname + location.search);
     return /expired|invalid|denied/i.test(e) ? "Odkaz na prihlásenie vypršal alebo už bol použitý. Pošli si nový." : "Prihlásenie sa nepodarilo, skús to znova.";
   }
-  // doplní vek a mesto – server ich vráti len pre mňa a mojich priateľov
+  // doplní mesto, server ho vráti len pre mňa a mojich priateľov
   function withPrivate(list) {
     if (!list.length) return Promise.resolve(list);
     return sb.rpc("profile_private", { p_ids: list.map(function (p) { return p.id; }) }).then(function (r) {
       fail(r.error, "Profily sa nepodarilo načítať.");
       var m = {}; (r.data || []).forEach(function (x) { m[x.id] = x; });
-      list.forEach(function (p) { var x = m[p.id]; p.age = x ? x.age : null; p.city = x ? x.city : null; });
+      list.forEach(function (p) { var x = m[p.id]; p.city = x ? x.city : null; });
       return list;
     });
   }
@@ -350,6 +350,24 @@
     ridePhones: function (rideId) {
       return sb.rpc("ride_phones", { p_ride: rideId }).then(function (r) { var m = {}; (r.data || []).forEach(function (x) { m[x.user_id] = x.phone; }); return m; });
     },
+    // stav v deň jazdy: na mieste, meškám, nestihnem (správa do chatu a upozornenie ostatným)
+    rideStatus: function (rideId, status) {
+      return sb.rpc("ride_status", { p_ride: rideId, p_status: status }).then(function (r) { fail(r.error, "Stav sa nepodarilo poslať."); return r.data || {}; });
+    },
+
+    /* ---------- nahlásenie a blokovanie ---------- */
+    // bez .select(): nahlásenie si späť prečítať nemôže nikto okrem administrácie
+    report: function (o) {
+      var row = { reason: o.reason, note: o.note || null };
+      if (o.user) row.target_user = o.user; else row.ride_id = o.ride;
+      return sb.from("reports").insert(row).then(function (r) { fail(r.error, "Nahlásenie sa nepodarilo odoslať."); });
+    },
+    blocks: function () { return sb.from("blocks").select("blocked").then(function (r) { return r.error ? [] : (r.data || []).map(function (x) { return x.blocked; }); }); },
+    block: function (id) {
+      return sb.from("blocks").insert({ blocked: id }).then(function (r) { if (r.error && r.error.code === "23505") return; fail(r.error, "Zablokovanie sa nepodarilo."); });
+    },
+    unblock: function (id) { return sb.from("blocks").delete().eq("blocker", me.id).eq("blocked", id).then(function (r) { fail(r.error, "Odblokovanie sa nepodarilo."); }); },
+
     // súhrnná návštevnosť (koľko ľudí appku otvorilo), nič sa neukladá do zariadenia
     track: function (kind, platform, standalone) {
       return sb.rpc("track", { p_kind: kind || "open", p_platform: platform || null, p_standalone: !!standalone }).then(function () {}, function () {});

@@ -1,4 +1,4 @@
-// Predpoveď počasia z MET Norway (yr.no) – zadarmo aj na komerčné použitie, CC BY 4.0.
+// Predpoveď počasia z MET Norway (yr.no), zadarmo aj na komerčné použitie, CC BY 4.0.
 // https://api.met.no/weatherapi/locationforecast/2.0/documentation
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 

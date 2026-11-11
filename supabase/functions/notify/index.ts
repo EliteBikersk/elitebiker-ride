@@ -1,7 +1,8 @@
-// Upozornenia do mobilu na udalosti v partii – volá ich databáza (trigger cez pg_net) s kľúčom z Vaultu.
+// Upozornenia do mobilu na udalosti v partii a na jazdách, volá ich databáza (trigger cez pg_net) s kľúčom z Vaultu.
 import { admin, json, readJson } from "../_shared/util.ts";
 import { APP, b64uEncode, encrypt, initPush, sameSecret, secrets, sendTo, when } from "../_shared/push.ts";
 
+const SERVIS = "https://www.elitebiker.sk/servis-bicyklov-2/";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 function clip(v: unknown, d: string, n = 60) { const s = String(v ?? "").trim(); return s ? (s.length > n ? s.slice(0, n - 1) + "…" : s) : d; }
 
@@ -38,6 +39,31 @@ Deno.serve(async (req) => {
     case "ride_join":
       if (ride) p = { title: `✅ ${first} ide s tebou`, body: `${title}${at ? ", " + at : ""}`, url: APP + "#jazda-" + ride, tag: "rj-" + ride + "-" + first };
       break;
+    case "ride_change": {
+      const meet = clip(b.meet, "", 60), ch = String(b.changed ?? "");
+      const parts = [ch !== "place" && at ? "Nový čas: " + at + "." : "", ch !== "time" && meet ? "Nové stretko: " + meet + "." : ""].filter(Boolean);
+      if (ride) p = { title: `✏️ Zmena jazdy: ${title}`, body: `${first} upravil jazdu. ${parts.join(" ")}`.trim(), url: APP + "#jazda-" + ride, tag: "rc-" + ride };
+      break;
+    }
+    case "ride_cancel":
+      p = { title: `❌ Jazda zrušená: ${title}`, body: `${first} zrušil jazdu${at ? " " + at : ""}.`, url: APP, tag: "rx-" + title };
+      break;
+    case "chat":
+      if (ride) p = { title: `💬 ${first} v jazde ${title}`, body: clip(b.text, "Nová správa", 140), url: APP + "#jazda-" + ride, tag: "chat-" + ride };
+      break;
+    case "status": {
+      const st = String(b.status ?? "");
+      const head = st === "here" ? `📍 ${first} je na mieste` : st === "late" ? `⏱️ ${first} mešká asi 10 minút` : st === "cant" ? `❌ ${first} to nestihne` : "";
+      if (ride && head) p = { title: head, body: `${title}${at ? ", " + at : ""}`, url: APP + "#jazda-" + ride, tag: "st-" + ride + "-" + first };
+      break;
+    }
+    case "service": {
+      const bike = clip(b.bike, "tvoj bicykel", 50);
+      p = b.phase === "season"
+        ? { title: "🔧 Sezóna je za rohom", body: `Priprav ${bike} na jazdy. Servis v EliteBiker v Považskej Bystrici vybaví všetko pred sezónou.`, url: SERVIS, tag: "servis" }
+        : { title: "🔧 Rok s tvojím bicyklom", body: `${bike} má za sebou rok jázd. Doprej mu servis v EliteBiker v Považskej Bystrici.`, url: SERVIS, tag: "servis" };
+      break;
+    }
   }
   if (!p) return json(req, { error: "bad kind" }, 400);
   const sent = await sendTo(db, [user], p, "social");

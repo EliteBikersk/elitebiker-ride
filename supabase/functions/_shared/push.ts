@@ -1,5 +1,5 @@
 // Spoločné pre upozornenia do mobilu (web push): tajné kľúče z Vaultu, odoslanie, čas jazdy po slovensky.
-// Šifrovanie podľa RFC 8291 (aes128gcm) a podpis VAPID (RFC 8292) – len cez WebCrypto, bez knižníc pre Node.
+// Šifrovanie podľa RFC 8291 (aes128gcm) a podpis VAPID (RFC 8292), len cez WebCrypto, bez knižníc pre Node.
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 export const APP = "https://elitebikersk.github.io/elitebiker-ride/";

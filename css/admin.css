@@ -107,3 +107,17 @@ body.adm{background:#eef0f5;display:block}
 }
 .adm-top .brand{flex:0 0 auto}
 @media (max-width:520px){.adm-title{display:none}.adm-top{gap:8px}.adm-top .btn.sm{padding-left:12px;padding-right:12px}}
+
+/* nahlásenia */
+.adm-rep h3 small{font-weight:600;color:var(--mu);font-size:13px;margin-left:6px}
+.adm-reps{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.adm-reps li{border:1px solid var(--ln);border-radius:14px;padding:12px 14px;background:#fff}
+.adm-reps li.open{border-color:#f6d9a8;background:#fffbf2}
+.adm-reps .what{font-size:14px;color:var(--ink)}
+.adm-reps .why{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px;font-size:13px;color:var(--tx)}
+.adm-reps .tag{background:var(--lb);color:var(--b);border-radius:999px;padding:2px 10px;font-weight:700;font-size:12px}
+.adm-reps q{font-style:italic}
+.adm-reps .meta{font-size:12px;color:var(--mu);margin-top:6px}
+.adm-reps .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.adm-done{margin-top:12px}
+.adm-done summary{cursor:pointer;font-weight:700;font-size:13px;color:var(--mu)}

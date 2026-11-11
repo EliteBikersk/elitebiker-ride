@@ -55,7 +55,7 @@ export async function currentUser(req: Request) {
 export async function readJson(req: Request): Promise<Record<string, unknown>> {
   try { return await req.json(); } catch { return {}; }
 }
-// Predpoveď počasia z MET Norway (yr.no) – zadarmo aj na komerčné použitie, CC BY 4.0.
+// Predpoveď počasia z MET Norway (yr.no), zadarmo aj na komerčné použitie, CC BY 4.0.
 // https://api.met.no/weatherapi/locationforecast/2.0/documentation
 
 export type Pt = { t: number; dur: number; temp: number | null; wind: number | null; gust: number | null; sym: string; pr: number; pop: number | null; thu: number | null };
@@ -147,7 +147,7 @@ export function evaluate(series: Pt[], start: number, end: number) {
 }
 function pops(pts: Pt[]) { return pts.every((p) => p.pop == null); }
 // Spoločné pre upozornenia do mobilu (web push): tajné kľúče z Vaultu, odoslanie, čas jazdy po slovensky.
-// Šifrovanie podľa RFC 8291 (aes128gcm) a podpis VAPID (RFC 8292) – len cez WebCrypto, bez knižníc pre Node.
+// Šifrovanie podľa RFC 8291 (aes128gcm) a podpis VAPID (RFC 8292), len cez WebCrypto, bez knižníc pre Node.
 
 export const APP = "https://elitebikersk.github.io/elitebiker-ride/";
 const SUBJECT = "mailto:info@elitebiker.sk";
@@ -285,7 +285,7 @@ export async function sendTo(db: SupabaseClient, userIds: string[], payload: Rec
   }
   return ok;
 }
-// Upozornenia na zlé počasie (spúšťa pg_cron každú hodinu) + skúšobné upozornenie pre prihláseného.
+// Upozornenia na zlé počasie a pripomienky jazdy (spúšťa pg_cron každú hodinu) + skúšobné upozornenie pre prihláseného.
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(req) });
@@ -327,5 +327,51 @@ Deno.serve(async (req) => {
     await db.from("ride_weather_alerts").upsert({ ride_id: r.id, summary });
     report.push({ ride: r.id, summary, sent: n });
   }
-  return json(req, { checked: (rides ?? []).length, alerts: report });
+  const reminders = await remind(db, now);
+  return json(req, { checked: (rides ?? []).length, alerts: report, reminders });
 });
+
+// pripomienky jazdy: večer pred (beh o 19. hodine) a približne 2 hodiny pred začiatkom, s počasím a počtom ľudí
+const TZ = "Europe/Bratislava";
+function localDay(t: number) { return new Date(t).toLocaleDateString("en-CA", { timeZone: TZ }); }
+function hm(iso: string) { return new Date(iso).toLocaleTimeString("sk-SK", { hour: "2-digit", minute: "2-digit", timeZone: TZ }); }
+async function remind(db: ReturnType<typeof admin>, now: number) {
+  const hour = +new Date(now).toLocaleString("en-US", { timeZone: TZ, hour: "2-digit", hour12: false });
+  const out: unknown[] = [];
+  const from = new Date(now + 90 * 60e3).toISOString(), to = new Date(now + (hour === 19 ? 30 : 2.5) * 3600e3).toISOString();
+  const { data: rides } = await db.from("rides").select("id, title, starts_at, meet_lat, meet_lng, meet_label, ride_participants(user_id)")
+    .gt("starts_at", from).lte("starts_at", to);
+  if (!rides?.length) return out;
+  const { data: done } = await db.from("ride_reminders").select("ride_id, phase").in("ride_id", rides.map((r) => r.id));
+  const sent = new Set((done ?? []).map((d) => d.ride_id + "/" + d.phase));
+  const tomorrow = localDay(now + 864e5);
+  for (const r of rides) {
+    const start = new Date(r.starts_at).getTime();
+    const phase = start <= now + 2.5 * 3600e3 ? "2h" : hour === 19 && localDay(start) === tomorrow ? "eve" : null;
+    if (!phase || sent.has(r.id + "/" + phase)) continue;
+    const users = (r.ride_participants ?? []).map((p: { user_id: string }) => p.user_id);
+    const allowed = await wanting(db, users, "reminder");
+    let wx = "";
+    const series = await forecast(db, r.meet_lat, r.meet_lng);
+    if (series?.length) {
+      const pt = series.reduce((a, b) => Math.abs(b.t - start) < Math.abs(a.t - start) ? b : a);
+      if (pt && Math.abs(pt.t - start) < 4 * 3600e3 && pt.temp != null) wx = `${Math.round(pt.temp)} °C${pt.sym ? ", " + symLabel(pt.sym) : ""}`;
+    }
+    const n = users.length;
+    const body = [r.meet_label ? "Stretko: " + r.meet_label : "", wx, n === 1 ? "zatiaľ ideš sám" : `idú ${n}`].filter(Boolean).join(" · ");
+    const payload = phase === "eve"
+      ? { title: `🚴 Zajtra ${hm(r.starts_at)}: ${r.title}`, body, url: APP + "#jazda-" + r.id, tag: "rem-" + r.id }
+      : { title: `⏰ Dnes ${hm(r.starts_at)}: ${r.title}`, body, url: APP + "#jazda-" + r.id, tag: "rem-" + r.id };
+    const cnt = allowed.length ? await sendTo(db, allowed, payload, "social") : 0;
+    await db.from("ride_reminders").upsert({ ride_id: r.id, phase });
+    out.push({ ride: r.id, phase, sent: cnt });
+  }
+  return out;
+}
+// kto si v Profile nevypol daný druh upozornení (bez uloženého výberu = všetko zapnuté)
+async function wanting(db: ReturnType<typeof admin>, users: string[], kind: string) {
+  if (!users.length) return [];
+  const { data } = await db.from("notify_prefs").select("user_id, push").in("user_id", users);
+  const off = new Set((data ?? []).filter((x: { push: string[] }) => !x.push.includes(kind)).map((x: { user_id: string }) => x.user_id));
+  return users.filter((u) => !off.has(u));
+}
