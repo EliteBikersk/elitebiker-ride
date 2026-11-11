@@ -1,4 +1,4 @@
-/* EliteBiker Ride – orezanie fotky pred nahraním.
+/* EliteBiker Ride, orezanie fotky pred nahraním.
    EBCrop.open(file, voľby) → Promise: { blob, aspect } | { skip: true } | null (zrušené) */
 (function () {
   "use strict";
@@ -17,20 +17,35 @@
     });
   }
 
+  // veľké fotky z mobilu (12 až 48 Mpx) zmenšíme, aby sa orezanie otvorilo hneď a nesekalo
+  function shrink(img, max) {
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height, k = max / Math.max(w, h);
+    if (k >= 1) return img;
+    var c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k);
+    var x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+
   function open(file, o) {
     o = o || {};
+    // okno orezania sa ukáže hneď po výbere fotky, fotka sa do neho načíta
+    var root = document.createElement("div"), cancelled = false;
+    root.className = "crop-ov crop-loading"; root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", o.title || "Orezať fotku");
+    root.innerHTML = '<div class="sh-top"><button class="icb" data-c="cancel" aria-label="Zrušiť">' + X + "</button><b>" + esc(o.title || "Orezať fotku") + "</b>" + (o.count ? '<small class="crop-n">' + esc(o.count) + "</small>" : "") + "</div>" +
+      '<div class="crop-stage"><div class="crop-wait"><span class="crop-spin"></span>Načítavam fotku…</div><div class="crop-box' + (o.round ? " round" : "") + '"><canvas></canvas><i class="crop-grid"></i></div></div>' +
+      '<div class="crop-ctl">' + (o.lock ? "" : '<div class="crop-asp">' + ASP.map(function (x) { return '<button type="button" data-c="asp" data-v="' + x[0] + '" class="' + ((o.aspect || "orig") === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>") +
+      '<div class="crop-row"><button type="button" class="crop-rot" data-c="rot" aria-label="Otočiť o 90°">' + ROT + '</button><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Priblíženie"></div>' +
+      '<div class="lacts"><button type="button" class="btn gh" data-c="skip">Bez orezania</button><button type="button" class="btn" data-c="ok">Použiť</button></div>' +
+      '<p class="info">Posuň fotku prstom, priblíž dvoma prstami alebo posuvníkom.</p></div>';
+    (o.parent || document.body).appendChild(root);
+    function early(e) { var b = e.target.closest('[data-c="cancel"]'); if (b && root.classList.contains("crop-loading")) { cancelled = true; root.remove(); } }
+    root.addEventListener("click", early);
     return loadFile(file).then(function (L) {
+      root.removeEventListener("click", early);
+      if (cancelled) { URL.revokeObjectURL(L.url); return null; }
+      root.classList.remove("crop-loading");
       return new Promise(function (resolve) {
-        var img = L.img, st = { a: o.aspect || "orig", rot: 0, z: 1, cx: 0, cy: 0 }, box = { w: 1, h: 1 }, ptrs = {}, pinch = null, done = false;
-        var root = document.createElement("div");
-        root.className = "crop-ov"; root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", o.title || "Orezať fotku");
-        root.innerHTML = '<div class="sh-top"><button class="icb" data-c="cancel" aria-label="Zrušiť">' + X + "</button><b>" + esc(o.title || "Orezať fotku") + "</b>" + (o.count ? '<small class="crop-n">' + esc(o.count) + "</small>" : "") + "</div>" +
-          '<div class="crop-stage"><div class="crop-box' + (o.round ? " round" : "") + '"><canvas></canvas><i class="crop-grid"></i></div></div>' +
-          '<div class="crop-ctl">' + (o.lock ? "" : '<div class="crop-asp">' + ASP.map(function (x) { return '<button type="button" data-c="asp" data-v="' + x[0] + '" class="' + (st.a === x[0] ? "on" : "") + '">' + x[1] + "</button>"; }).join("") + "</div>") +
-          '<div class="crop-row"><button type="button" class="crop-rot" data-c="rot" aria-label="Otočiť o 90°">' + ROT + '</button><input type="range" min="1" max="4" step="0.01" value="1" aria-label="Priblíženie"></div>' +
-          '<div class="lacts"><button type="button" class="btn gh" data-c="skip">Bez orezania</button><button type="button" class="btn" data-c="ok">Použiť</button></div>' +
-          '<p class="info">Posuň fotku prstom, priblíž dvoma prstami alebo posuvníkom.</p></div>';
-        (o.parent || document.body).appendChild(root);
+        var img = shrink(L.img, 2600), st = { a: o.aspect || "orig", rot: 0, z: 1, cx: 0, cy: 0 }, box = { w: 1, h: 1 }, ptrs = {}, pinch = null, done = false;
         var stage = root.querySelector(".crop-stage"), bx = root.querySelector(".crop-box"), cv = root.querySelector("canvas"), ctx = cv.getContext("2d"), zr = root.querySelector("input[type=range]");
 
         function dims() { return st.rot % 180 ? [img.height, img.width] : [img.width, img.height]; }
@@ -106,7 +121,7 @@
         requestAnimationFrame(layout);
         var ok = root.querySelector('[data-c="ok"]'); if (ok && window.innerWidth > 700) ok.focus();
       });
-    });
+    }, function (e) { root.remove(); throw e; });
   }
   window.EBCrop = { open: open };
 })();

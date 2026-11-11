@@ -1669,7 +1669,7 @@
   }
   function cropAvatar(f) {
     if (!window.EBCrop) return Promise.resolve(f);
-    return EBCrop.open(f, { aspect: "1:1", lock: true, round: true, max: 1024, title: "Profilová fotka", parent: $("app") }).then(function (r) { return r ? r.blob || f : null; }, function () { return f; });
+    return EBCrop.open(f, { aspect: "1:1", lock: true, round: true, max: 1024, title: "Profilová fotka", parent: $("app") }).then(function (r) { return r ? r.blob || f : null; }, function () { toast("Túto fotku sa nepodarilo otvoriť. Skús inú."); return null; });
   }
   document.addEventListener("change", function (e) {
     var t = e.target; if (!t || !t.files || !t.files.length || !t.dataset.up) return;
