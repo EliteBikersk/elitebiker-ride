@@ -297,12 +297,20 @@
       '<span class="cityok"' + (val ? "" : " hidden") + ">" + sz(IC.check, 18) + '</span></div><div class="cityl" id="' + pre + '-cityl" role="listbox"></div>' +
       '<p class="small-note" style="margin:6px 0 0">🔒 Vyber zo zoznamu. Podľa mesta ti ukážeme verejné jazdy do 30 km. Vek a mesto uvidia len tvoji priatelia.</p>';
   }
-  function cityOk(pre) {
+  function fold(t) { return String(t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
+  // presne napísaný názov (jediná taká obec) berieme, aj keď nikto neťukol na návrh
+  function cityExact(l, v) { var m = (l || []).filter(function (p) { return fold(p.name) === fold(v); }); return m.length === 1 ? m[0] : null; }
+  function cityOk(pre, form) {
     var c = CITY[pre], el = $(pre + "-city"); if (!c || !el) return true;
     var v = el.value.trim();
     if ((c.pick && c.pick.name === v) || (c.orig && v === c.orig)) return true;
-    toast("Vyber mesto zo zoznamu, nech sa ti ukážu jazdy v okolí.");
-    el.focus(); citySearch(pre, true);
+    var ex = cityExact(c.list, v); if (ex) { cityPick(pre, ex); return true; }
+    api.places(v).then(function (l) {
+      c.list = l; var e = cityExact(l, v);
+      if (e && form) { cityPick(pre, e); if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event("submit", { cancelable: true })); return; }
+      toast("Vyber mesto zo zoznamu, nech sa ti ukážu jazdy v okolí.");
+      el.focus(); cityList(pre, l);
+    });
     return false;
   }
   function citySearch(pre, now) {
@@ -367,7 +375,7 @@
       if (!patch.display_name) { toast("Zadaj svoje meno."); return; }
       if (!(patch.age >= 14 && patch.age <= 99)) { toast("Zadaj vek od 14 do 99 rokov."); return; }
       if (!patch.city) { toast("Napíš, odkiaľ si. Podľa toho uvidíš jazdy v okolí."); $("o-city").focus(); return; }
-      if (!cityOk("o")) return;
+      if (!cityOk("o", $("onbForm"))) return;
       var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
       if (normPhone($("o-tel").value) === null) { toast("Telefónne číslo nevyzerá správne. Napíš ho napríklad 0905 123 456, alebo nechaj prázdne."); $("o-tel").focus(); return; }
       api.updateProfile(patch).then(function (p) { return savePhone("o").catch(function (x) { err(x); }).then(function () { return p; }); }).then(function (p) { S.me = p; S.P[S.uid] = p; $("onb").classList.add("hide"); render(); afterStart(); autoLocation(p.city, CITY.o && CITY.o.pick); toast("Vitaj v EliteBiker Ride, <b>" + esc(p.display_name.split(" ")[0]) + "</b>!"); }).catch(err);
@@ -610,7 +618,7 @@
         bike_types: [].slice.call(document.querySelectorAll("#e-types .on")).map(function (b) { return b.dataset.v; }) };
       if (!patch.display_name) { toast("Zadaj svoje meno."); return; }
       if (!(patch.age >= 14 && patch.age <= 99)) { toast("Vek musí byť od 14 do 99 rokov."); return; }
-      if (patch.city && !cityOk("e")) return;
+      if (patch.city && !cityOk("e", $("editForm"))) return;
       var bad = checkContacts(patch.ig_username, patch.fb_name); if (bad) { toast(bad); return; }
       if (normPhone($("e-tel").value) === null) { toast("Telefónne číslo nevyzerá správne. Napíš ho napríklad 0905 123 456."); $("e-tel").focus(); return; }
       api.updateProfile(patch).then(function (p) { S.me = p; S.P[S.uid] = p; return savePhone("e"); }).then(function (ok) { if (!ok) return; S.editing = false; render(true); toast("Profil uložený."); autoLocation(S.me.city, CITY.e && CITY.e.pick); }).catch(err);
