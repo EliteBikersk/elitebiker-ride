@@ -58,7 +58,9 @@
       meet: { lat: r.meet_lat, lng: r.meet_lng, label: r.meet_label || "" },
       route: r.route || null, distance_km: r.distance_km != null ? +r.distance_km : null, elevation_m: r.elevation_m,
       pace: r.pace, trails: r.trails || null, visibility: r.visibility || (r.allow_invites ? "friends" : "private"), allow_invites: r.allow_invites, audience_kind: r.audience_kind, max_people: r.max_people || null, link_url: r.link_url || null,
+      official: !!r.official,
       participants: (r.ride_participants || []).map(function (p) { return p.user_id; }),
+      maybe: (r.ride_maybe || []).map(function (p) { return p.user_id; }),
       audience: (r.ride_audience || []).map(function (p) { return p.user_id; })
     };
   }
@@ -135,6 +137,18 @@
       return sb.auth.verifyOtp({ email: email, token: code, type: "email" }).then(function (r) { fail(r.error, "Kód nesedí alebo vypršal. Pošli si nový."); });
     },
     logout: function () { return sb.auth.signOut(); },
+    // prihlásenie cez Google alebo Apple: tlačidlá sa ukážu, len keď je poskytovateľ v Supabase zapnutý
+    authProviders: function () {
+      if (!api._prov) api._prov = fetch(C.SUPABASE_URL + "/auth/v1/settings", { headers: { apikey: C.SUPABASE_ANON_KEY } })
+        .then(function (r) { return r.ok ? r.json() : {}; }).then(function (j) { var e = (j && j.external) || {}; return { google: !!e.google, apple: !!e.apple }; })
+        .catch(function () { api._prov = null; return {}; });
+      return api._prov;
+    },
+    oauth: function (provider) {
+      return sb.auth.signInWithOAuth({ provider: provider, options: { redirectTo: backUrl(), scopes: provider === "apple" ? "name email" : undefined, queryParams: provider === "google" ? { prompt: "select_account" } : undefined } })
+        .then(function (r) { fail(r.error, "Prihlásenie sa nepodarilo."); });
+    },
+    userMeta: function () { return (me && me.user_metadata) || {}; },
     isAdmin: function () { return sb.rpc("admin_status").then(function (r) { return !r.error && r.data && r.data.admin; }); },
 
     /* ---------- profily ---------- */
@@ -253,7 +267,7 @@
     /* ---------- jazdy ---------- */
     rides: function () {
       var since = new Date(Date.now() - 7 * 864e5).toISOString();
-      return sb.from("rides").select("*, ride_participants(user_id), ride_audience(user_id)").gte("ends_at", since).order("starts_at").then(function (r) {
+      return sb.from("rides").select("*, ride_participants(user_id), ride_maybe(user_id), ride_audience(user_id)").gte("ends_at", since).order("starts_at").then(function (r) {
         fail(r.error, "Jazdy sa nepodarilo načítať."); return r.data.map(normRide);
       });
     },
@@ -269,6 +283,7 @@
         distance_km: d.distance_km || null, elevation_m: d.elevation_m || null, max_people: d.max_people || null, link_url: d.link_url || null,
         pace: d.pace || null, visibility: d.visibility || "friends", audience_kind: d.audience_kind || "pick"
       };
+      if (d.official) row.official = true;
       if (d.trails && d.trails.length) row.trails = d.trails;
       return sb.from("rides").insert(row).select().single().then(function (r) {
         fail(r.error, "Jazdu sa nepodarilo uložiť.");
@@ -289,6 +304,11 @@
     setVisibility: function (id, v) { return sb.from("rides").update({ visibility: v }).eq("id", id).then(function (r) { fail(r.error, "Zmenu sa nepodarilo uložiť."); }); },
     cancelRide: function (id) { return sb.from("rides").delete().eq("id", id).then(function (r) { fail(r.error); }); },
     joinRide: function (id) { return sb.from("ride_participants").insert({ ride_id: id, user_id: me.id }).then(function (r) { fail(r.error, "Pridať sa nepodarilo."); }); },
+    // „možno“: nezaberá miesto; po pridaní sa k jazde ho server sám zmaže
+    maybe: function (id, on) {
+      if (on) return sb.from("ride_maybe").insert({ ride_id: id }).then(function (r) { if (r.error && r.error.code === "23505") return; fail(r.error, "Nepodarilo sa uložiť."); });
+      return sb.from("ride_maybe").delete().eq("ride_id", id).eq("user_id", me.id).then(function (r) { fail(r.error, "Nepodarilo sa uložiť."); });
+    },
     leaveRide: function (id) { return sb.from("ride_participants").delete().eq("ride_id", id).eq("user_id", me.id).then(function (r) { fail(r.error); }); },
     invite: function (id, ids) {
       return sb.from("ride_audience").upsert(ids.map(function (u) { return { ride_id: id, user_id: u, invited_by: me.id }; }), { onConflict: "ride_id,user_id", ignoreDuplicates: true })
@@ -354,6 +374,16 @@
     rideStatus: function (rideId, status) {
       return sb.rpc("ride_status", { p_ride: rideId, p_status: status }).then(function (r) { fail(r.error, "Stav sa nepodarilo poslať."); return r.data || {}; });
     },
+
+    /* ---------- mám čas (vidia len priatelia) ---------- */
+    availability: function () {
+      var d = new Date(), today = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      return sb.from("availability").select("user_id,day,from_time,note").gte("day", today).then(function (r) { return r.error ? [] : r.data || []; });
+    },
+    setAvailability: function (day, from, note) {
+      return sb.rpc("set_availability", { p_day: day, p_from: from || null, p_note: note || null }).then(function (r) { fail(r.error, "Nepodarilo sa uložiť."); return r.data; });
+    },
+    clearAvailability: function (day) { return sb.from("availability").delete().eq("user_id", me.id).eq("day", day).then(function (r) { fail(r.error, "Nepodarilo sa zrušiť."); }); },
 
     /* ---------- nahlásenie a blokovanie ---------- */
     // bez .select(): nahlásenie si späť prečítať nemôže nikto okrem administrácie

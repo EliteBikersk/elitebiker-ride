@@ -339,7 +339,7 @@ async function remind(db: ReturnType<typeof admin>, now: number) {
   const hour = +new Date(now).toLocaleString("en-US", { timeZone: TZ, hour: "2-digit", hour12: false });
   const out: unknown[] = [];
   const from = new Date(now + 90 * 60e3).toISOString(), to = new Date(now + (hour === 19 ? 30 : 2.5) * 3600e3).toISOString();
-  const { data: rides } = await db.from("rides").select("id, title, starts_at, meet_lat, meet_lng, meet_label, ride_participants(user_id)")
+  const { data: rides } = await db.from("rides").select("id, title, starts_at, meet_lat, meet_lng, meet_label, ride_participants(user_id), ride_maybe(user_id)")
     .gt("starts_at", from).lte("starts_at", to);
   if (!rides?.length) return out;
   const { data: done } = await db.from("ride_reminders").select("ride_id, phase").in("ride_id", rides.map((r) => r.id));
@@ -357,12 +357,19 @@ async function remind(db: ReturnType<typeof admin>, now: number) {
       const pt = series.reduce((a, b) => Math.abs(b.t - start) < Math.abs(a.t - start) ? b : a);
       if (pt && Math.abs(pt.t - start) < 4 * 3600e3 && pt.temp != null) wx = `${Math.round(pt.temp)} °C${pt.sym ? ", " + symLabel(pt.sym) : ""}`;
     }
-    const n = users.length;
-    const body = [r.meet_label ? "Stretko: " + r.meet_label : "", wx, n === 1 ? "zatiaľ ideš sám" : `idú ${n}`].filter(Boolean).join(" · ");
+    const n = users.length, maybe = (r.ride_maybe ?? []).map((p: { user_id: string }) => p.user_id);
+    const who = [n === 1 ? "zatiaľ ideš sám" : `idú ${n}`, maybe.length ? `možno ${maybe.length}` : ""].filter(Boolean).join(", ");
+    const body = [r.meet_label ? "Stretko: " + r.meet_label : "", wx, who].filter(Boolean).join(" · ");
     const payload = phase === "eve"
       ? { title: `🚴 Zajtra ${hm(r.starts_at)}: ${r.title}`, body, url: APP + "#jazda-" + r.id, tag: "rem-" + r.id }
       : { title: `⏰ Dnes ${hm(r.starts_at)}: ${r.title}`, body, url: APP + "#jazda-" + r.id, tag: "rem-" + r.id };
-    const cnt = allowed.length ? await sendTo(db, allowed, payload, "social") : 0;
+    let cnt = allowed.length ? await sendTo(db, allowed, payload, "social") : 0;
+    // večer pred jazdou sa opýtame aj tých, čo dali „možno“
+    if (phase === "eve" && maybe.length) {
+      const ask = await wanting(db, maybe, "reminder");
+      const mb = [r.meet_label ? "Stretko: " + r.meet_label : "", wx, `idú ${n}`].filter(Boolean).join(" · ");
+      if (ask.length) cnt += await sendTo(db, ask, { title: `🤔 Zajtra ${hm(r.starts_at)}: ${r.title}. Ideš?`, body: mb + ". Ťukni a daj vedieť.", url: APP + "#jazda-" + r.id, tag: "rem-" + r.id }, "social");
+    }
     await db.from("ride_reminders").upsert({ ride_id: r.id, phase });
     out.push({ ride: r.id, phase, sent: cnt });
   }

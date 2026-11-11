@@ -1109,3 +1109,47 @@ input[type=date].inp::-webkit-date-and-time-value,input[type=time].inp::-webkit-
 .offbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 16px 0;padding:9px 12px;border-radius:12px;background:#fff7e6;border:1px solid #f6d9a8;color:#7a4a07;font-size:12.5px;line-height:1.4}
 .offbar span{flex:1;min-width:160px}
 .offbar .lnk{color:#7a4a07;font-size:12.5px}
+
+/* mám čas */
+.hav{margin:12px 0 0;font-size:13px;opacity:.95;max-width:none}
+.hero .hav .lnk{color:#fff}
+.avrow{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 6px;margin:0 -2px;scrollbar-width:none}
+.avrow::-webkit-scrollbar{display:none}
+.avc{flex:0 0 auto;width:118px;display:flex;flex-direction:column;align-items:center;gap:3px;background:#fff;border:1.5px solid #bbf7d0;border-radius:16px;padding:12px 8px;text-align:center}
+.avc .pic{width:44px;height:44px;box-shadow:0 0 0 3px #22c55e}
+.avc b{font-size:13.5px;color:var(--ink);margin-top:5px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avc small{font-size:12px;color:#15803d;font-weight:700}
+.avc em{font-style:normal;font-size:11.5px;color:var(--mu);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.seg3.avday{grid-template-columns:1fr 1fr}
+.avt{display:flex;align-items:center;gap:10px;margin-top:10px}
+.avt span{font-size:12.5px;color:var(--mu);white-space:nowrap}
+.avt .inp{max-width:150px}
+.avnote{font-size:14px;color:var(--tx);margin:8px 0 0;font-style:italic}
+
+/* možno */
+.mbc{background:#fff7e6;color:#9a5b07;border-color:#f6d9a8;margin-right:6px}
+.btn.mbtn{flex:0 0 auto}
+.btn.mbtn.on,.acts .btn.gh.on{background:#fff7e6;border-color:#f6c77a;color:#9a5b07}
+.mbh{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--mu);padding:12px 0 4px;border-top:1px solid var(--ln);margin-top:4px}
+.mbh small{font-weight:600}
+.mbr{opacity:.75}
+
+/* oficiálne jazdy EliteBiker */
+.offh{display:flex;align-items:center;gap:8px;margin:20px 2px 10px}
+.offh img{width:26px;height:26px;border-radius:8px;border:1px solid var(--ln)}
+.offh b{font-size:15px;font-weight:800;color:var(--ink)}
+.offh small{font-size:12px;color:var(--mu);margin-left:auto}
+.card.ride.off{border:2px solid var(--b);box-shadow:0 10px 26px rgba(27,70,229,.14);background:linear-gradient(180deg,#f3f6ff,#fff 46%)}
+.offb{display:flex;align-items:center;gap:8px;margin:-2px 0 12px;padding-bottom:10px;border-bottom:1px dashed var(--lbl)}
+.offb img{width:24px;height:24px;border-radius:7px;border:1px solid var(--ln);background:#fff}
+.offb b{font-size:13px;font-weight:800;color:var(--b)}
+.offb small{margin-left:auto;font-size:12px;color:var(--mu)}
+.chip.offc{background:var(--b);color:#fff;border-color:var(--b)}
+.chkrow.offrow{margin-top:14px;border-color:var(--lbl)}
+
+/* prihlásenie cez Google a Apple */
+.oauth{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.btn.oab{min-height:48px}
+.btn.apl{background:#11131a;color:#fff}
+.ordiv{display:flex;align-items:center;gap:10px;margin:14px 0 2px;color:var(--li);font-size:12px;font-weight:600}
+.ordiv:before,.ordiv:after{content:"";flex:1;height:1px;background:var(--ln)}

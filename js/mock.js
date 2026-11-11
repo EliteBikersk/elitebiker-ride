@@ -28,7 +28,8 @@
       P("u-jana", "jana_ebike", null, "Jana V.", 45, "Považská Teplá", ["ebike"], { bg: "#efe4fb", jc: "#7c3aed", hc: "#7c3aed", sk: 1, fem: 1, hair: "#d9a441" }),
       P("u-marek", "marek.enduro", null, "Marek S.", 23, "Považská Bystrica", ["mtb"], { bg: "#fff1bf", jc: "#ea7a17", hc: "#11131a", sk: 0 }),
       P("u-rasto", null, "facebook.com/rasto.bikes", "Rasťo D.", 37, "Dubnica nad Váhom", ["gravel"], { bg: "#d5eef5", jc: "#0e7490", hc: "#fff", sk: 2 }),
-      P("u-zuza", "zuzka.trail", null, "Zuzana P.", 30, "Považská Bystrica", ["mtb"], { bg: "#e6f4d8", jc: "#4d7c0f", hc: "#fff", sk: 0, fem: 1, hair: "#3b2a20" })
+      P("u-zuza", "zuzka.trail", null, "Zuzana P.", 30, "Považská Bystrica", ["mtb"], { bg: "#e6f4d8", jc: "#4d7c0f", hc: "#fff", sk: 0, fem: 1, hair: "#3b2a20" }),
+      P("u-eb", "elitebiker.sk", null, "EliteBiker", null, "Považská Bystrica", ["mtb", "ebike"], { bg: "#dfe4fb", jc: "#1b46e5", hc: "#11131a", sk: 1 })
     ];
     var F = ["u-adam", "u-peto", "u-lucia", "u-tomas", "u-jana", "u-marek"];
     function R(id, host, type, title, start, hours, meet, route, km, pace, parts, aud, note, msgs, vis) {
@@ -54,8 +55,14 @@
     // dnešná jazda o pár hodín: na skúšku tlačidiel „Som na mieste“, „Meškám“, „Nestihnem“
     var soon = new Date(Math.ceil((now + 2.5 * H) / (15 * 6e4)) * 15 * 6e4).toISOString();
     rides.push(R("r8", "u-peto", "mtb", "Po práci okolo Váhu", soon, 2, MOST, null, 18, "pohoda", ["u-peto", "me", "u-adam"], ["me", "u-adam"], "Ľahký okruh, kým je svetlo.", [{ user_id: "u-adam", body: "Beriem aj svetlá.", created_at: new Date(now - H).toISOString() }]));
+    // oficiálna jazda EliteBiker (pripnutá hore) a „možno“ pri komunitnej jazde
+    var off = R("r9", "u-eb", "ebike", "Test e-bikov Marin a Haro s EliteBiker", at(4, 16), 2, DEDOVEC, null, 20, null, ["u-eb", "u-adam"], [], "Vyskúšaj nové e-biky zadarmo. Prilbu požičiame, stačí prísť.", [], "public");
+    off.official = true; off.max_people = 12; rides.push(off);
+    rides[2].maybe = ["u-jana"];
     rides.push(R("r7", "u-rasto", "gravel", "Gravel okolo Bratislavy", at(4, 10), 4, { lat: 48.1486, lng: 17.1077, label: "Eurovea, Bratislava" }, null, 60, "stredne", ["u-rasto"], [], "", [], "public"));
-    return { profiles: profiles, friends: F, incoming: ["u-rasto"], outgoing: [], shortcuts: [
+    function ymd(o) { var d = new Date(now + o * D); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+    var av = [{ user_id: "u-peto", day: ymd(0), from_time: "16:00:00", note: "gravel alebo Manín, hocičo" }, { user_id: "u-lucia", day: ymd(1), from_time: null, note: null }];
+    return { av: av, profiles: profiles, friends: F, incoming: ["u-rasto"], outgoing: [], shortcuts: [
       { id: "s1", name: "MTB partia", emoji: "🏔️", members: ["u-adam", "u-peto", "u-marek"] },
       { id: "s2", name: "Gravel pohodári", emoji: "☕", members: ["u-lucia", "u-jana"] }], rides: rides, me: null };
   }
@@ -177,7 +184,7 @@
     rides: function () {
       var since = Date.now() - 7 * 864e5;
       return wait(D.rides.filter(function (r) { return visible(r) && new Date(r.ends_at).getTime() > since; })
-        .map(function (r) { var c = copy(r); delete c.messages; delete c.photos; return c; })
+        .map(function (r) { var c = copy(r); delete c.messages; delete c.photos; c.maybe = c.maybe || []; c.official = !!c.official; return c; })
         .sort(function (a, b) { return a.starts_at < b.starts_at ? -1 : 1; }));
     },
     myTemplates: function () { return wait(D.rides.filter(function (r) { return r.host === "me"; }).map(copy).sort(function (a, b) { return a.starts_at < b.starts_at ? 1 : -1; })); },
@@ -203,7 +210,7 @@
     },
     setVisibility: function (id, v) { var r = ride(id); r.visibility = v; r.allow_invites = v !== "private"; changed(); return wait(); },
     cancelRide: function (id) { D.rides = D.rides.filter(function (r) { return r.id !== id; }); changed(); return wait(); },
-    joinRide: function (id) { var r = ride(id); if (!visible(r)) return Promise.reject(new Error("Pridať sa nepodarilo.")); if (r.participants.indexOf("me") < 0) r.participants.push("me"); changed(); return wait(); },
+    joinRide: function (id) { var r = ride(id); if (!visible(r)) return Promise.reject(new Error("Pridať sa nepodarilo.")); if (r.participants.indexOf("me") < 0) r.participants.push("me"); r.maybe = (r.maybe || []).filter(function (x) { return x !== "me"; }); changed(); return wait(); },
     leaveRide: function (id) { var r = ride(id); r.participants = r.participants.filter(function (x) { return x !== "me"; }); changed(); return wait(); },
     invite: function (id, ids) { var r = ride(id); ids.forEach(function (u) { if (r.audience.indexOf(u) < 0) r.audience.push(u); }); changed();
       setTimeout(function () { if (r.participants.indexOf(ids[0]) < 0) { r.participants.push(ids[0]); changed(); } }, 3500); return wait(); },
@@ -268,6 +275,26 @@
       return wait(m);
     },
     track: function () { return wait(); },
+    maybe: function (id, on) {
+      var r = ride(id); r.maybe = r.maybe || [];
+      if (on && r.participants.indexOf("me") < 0 && r.maybe.indexOf("me") < 0) r.maybe.push("me");
+      if (!on) r.maybe = r.maybe.filter(function (x) { return x !== "me"; });
+      changed(); return wait();
+    },
+    availability: function () {
+      var t = new Date(); t.setHours(0, 0, 0, 0);
+      return wait((D.av || []).filter(function (a) { return new Date(a.day + "T12:00:00") >= t && (a.user_id === "me" || D.friends.indexOf(a.user_id) > -1); }).map(copy));
+    },
+    setAvailability: function (day, from, note) {
+      var d = new Date(); if (day === "tomorrow") d.setDate(d.getDate() + 1);
+      var k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      D.av = (D.av || []).filter(function (a) { return !(a.user_id === "me" && a.day === k); });
+      D.av.push({ user_id: "me", day: k, from_time: from ? from + ":00" : null, note: note || null }); changed(); return wait({ ok: true, day: k });
+    },
+    clearAvailability: function (day) { D.av = (D.av || []).filter(function (a) { return !(a.user_id === "me" && a.day === day); }); changed(); return wait(); },
+    authProviders: function () { return wait({ google: true, apple: true }); },
+    oauth: function () { D.me = D.me || blankMe("martin@gmail.com"); D.me.meta = { full_name: "Martin Google" }; save(); setTimeout(function () { location.reload(); }, 300); return wait(); },
+    userMeta: function () { return (D.me && D.me.meta) || {}; },
     rideStatus: function (id, st) {
       var r = ride(id), now = Date.now();
       if (!r || r.participants.indexOf("me") < 0) return Promise.reject(new Error("Na tejto jazde nie si."));

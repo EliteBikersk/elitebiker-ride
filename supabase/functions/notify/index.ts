@@ -57,6 +57,18 @@ Deno.serve(async (req) => {
       if (ride && head) p = { title: head, body: `${title}${at ? ", " + at : ""}`, url: APP + "#jazda-" + ride, tag: "st-" + ride + "-" + first };
       break;
     }
+    case "free": {
+      // kamoš má čas jazdiť (dnes alebo zajtra, prípadne od istej hodiny)
+      const day = b.day === "tomorrow" ? "zajtra" : "dnes", from = /^\d{1,2}:\d{2}$/.test(String(b.from ?? "")) ? String(b.from) : "";
+      const note = clip(b.note, "", 80);
+      p = { title: `🙋 ${first} má ${day} čas jazdiť${from ? " od " + from : ""}`, body: note ? `„${note}“ Ťukni a založte spolu jazdu.` : "Ťukni a založte spolu jazdu.", url: APP + "#cas", tag: "free-" + user + "-" + day };
+      break;
+    }
+    case "official": {
+      const meet = clip(b.meet, "", 60);
+      if (ride) p = { title: `🏁 EliteBiker organizuje: ${title}`, body: `${at ? at.charAt(0).toUpperCase() + at.slice(1) : "Čoskoro"}${meet ? ", stretko " + meet : ""}. Ťukni a pridaj sa.`, url: APP + "#jazda-" + ride, tag: "off-" + ride };
+      break;
+    }
     case "service": {
       const bike = clip(b.bike, "tvoj bicykel", 50);
       p = b.phase === "season"
