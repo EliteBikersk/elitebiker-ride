@@ -1,0 +1,472 @@
+/* EliteBiker Ride – komunikácia so serverom (Supabase).
+   Rovnaké rozhranie má aj skúšobný režim v js/mock.js. */
+(function () {
+  "use strict";
+  var C = window.EB_CONFIG || {};
+  if (!C.SUPABASE_URL || !C.SUPABASE_ANON_KEY || !window.supabase) return;
+
+  var sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, {
+    auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true }
+  });
+  var me = null;
+  // mesto sa nečíta z tabuľky, vracia ho server len sebe a priateľom (profile_private)
+  var PROFILE_COLS = "id,ig_username,fb_name,display_name,avatar_url,bike_types,created_at";
+  var BIKE_COLS = "id,user_id,name,catalog_id,url,image,type,created_at", catP = null;
+
+  // naše hlásenia zo servera (limity, kontroly) ukážeme priamo, ostatné nahradíme zrozumiteľnou vetou
+  function fail(error, msg) {
+    if (!error) return;
+    console.error(error);
+    if (error.code === "P0001" || error.code === "22023" || error.hint === "rate_limit") throw new Error(error.message);
+    throw new Error(msg || error.message || "Chyba servera");
+  }
+  function rnd() { var a = new Uint8Array(12); crypto.getRandomValues(a); return Array.from(a, function (b) { return b.toString(16).padStart(2, "0"); }).join(""); }
+  function fn(name, body) {
+    return sb.functions.invoke(name, { body: body || {} }).then(function (r) {
+      if (r.error) {
+        var ctx = r.error.context;
+        if (ctx && typeof ctx.json === "function") return ctx.json().then(function (j) { throw new Error(j && j.error || r.error.message); }, function () { throw new Error(r.error.message); });
+        throw new Error(r.error.message);
+      }
+      return r.data;
+    });
+  }
+  // kód z pozývacieho odkazu sa pri registrácii uloží k účtu, server ho uplatní, aj keď sa v prehliadači stratí
+  function inviteCode() { var c = null; try { c = localStorage.getItem("eb_pozvanka"); } catch (e) {} if (!c) c = new URLSearchParams(location.search).get("pozvanka"); return c && /^[A-Za-z0-9_-]{6,40}$/.test(c) ? c : null; }
+  function signupData(extra) { var d = extra || {}, c = inviteCode(); if (c) d.pozvanka = c; return d; }
+  function backUrl() { var c = null; try { c = localStorage.getItem("eb_pozvanka"); } catch (e) {} return C.APP_URL + (c ? "?pozvanka=" + encodeURIComponent(c) : ""); }
+  function linkError() {
+    var h = new URLSearchParams(location.hash.replace(/^#/, "")), e = h.get("error_description") || h.get("error");
+    if (!e) return null;
+    history.replaceState(null, "", location.pathname + location.search);
+    return /expired|invalid|denied/i.test(e) ? "Odkaz na prihlásenie vypršal alebo už bol použitý. Pošli si nový." : "Prihlásenie sa nepodarilo, skús to znova.";
+  }
+  // doplní mesto, server ho vráti len pre mňa a mojich priateľov
+  function withPrivate(list) {
+    if (!list.length) return Promise.resolve(list);
+    return sb.rpc("profile_private", { p_ids: list.map(function (p) { return p.id; }) }).then(function (r) {
+      fail(r.error, "Profily sa nepodarilo načítať.");
+      var m = {}; (r.data || []).forEach(function (x) { m[x.id] = x; });
+      list.forEach(function (p) { var x = m[p.id]; p.city = x ? x.city : null; });
+      return list;
+    });
+  }
+  function normRide(r) {
+    return {
+      id: r.id, host: r.host, type: r.type, title: r.title, note: r.note || "",
+      starts_at: r.starts_at, ends_at: r.ends_at,
+      meet: { lat: r.meet_lat, lng: r.meet_lng, label: r.meet_label || "" },
+      route: r.route || null, distance_km: r.distance_km != null ? +r.distance_km : null, elevation_m: r.elevation_m,
+      pace: r.pace, trails: r.trails || null, visibility: r.visibility || (r.allow_invites ? "friends" : "private"), allow_invites: r.allow_invites, audience_kind: r.audience_kind, max_people: r.max_people || null, link_url: r.link_url || null,
+      official: !!r.official,
+      tags: r.tags || [], stops: r.stops || [], sweeper: r.sweeper || null, cohost: r.cohost || null,
+      participants: (r.ride_participants || []).map(function (p) { return p.user_id; }),
+      maybe: (r.ride_maybe || []).map(function (p) { return p.user_id; }),
+      audience: (r.ride_audience || []).map(function (p) { return p.user_id; })
+    };
+  }
+  function compress(file, max, q) {
+    return new Promise(function (res) {
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { res(b || file); }, "image/jpeg", q || 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); res(file); };
+      img.src = url;
+    });
+  }
+
+  function rpc(name, args, msg) { return sb.rpc(name, args).then(function (r) { fail(r.error, msg); return r.data; }); }
+
+  var api = {
+    mode: "live",
+
+    /* ---------- prihlásenie ---------- */
+    init: function () {
+      var msg = linkError();
+      return sb.auth.getSession().then(function (r) { me = r.data.session ? r.data.session.user : null; return { user: me, message: msg }; });
+    },
+    onAuth: function (cb) { sb.auth.onAuthStateChange(function (_e, s) { me = s ? s.user : null; cb(me); }); },
+    userId: function () { return me && me.id; },
+    loginEmail: function (email) {
+      return sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: backUrl(), data: signupData() } }).then(function (r) {
+        if (r.error && /rate|security purposes|seconds/i.test(r.error.message)) throw new Error("E-mail sme ti poslali len pred chvíľou. Skús to o minútu.");
+        fail(r.error, "E-mail sa nepodarilo odoslať. Skús to o chvíľu.");
+      });
+    },
+    signIn: function (email, password) {
+      return sb.auth.signInWithPassword({ email: email, password: password }).then(function (r) {
+        if (!r.error) return;
+        var e;
+        if (/not confirmed/i.test(r.error.message)) { e = new Error("E-mail ešte nie je potvrdený. Zadaj kód, ktorý sme ti poslali."); e.code = "unconfirmed"; throw e; }
+        if (/invalid/i.test(r.error.message)) throw new Error("Nesprávny e-mail alebo heslo.");
+        fail(r.error, "Prihlásenie sa nepodarilo.");
+      });
+    },
+    signUp: function (email, password) {
+      return sb.auth.signUp({ email: email, password: password, options: { emailRedirectTo: backUrl(), data: signupData({ has_password: true }) } }).then(function (r) {
+        if (r.error) {
+          // neprezradíme, či e-mail už má účet (ochrana pred zisťovaním, kto appku používa)
+          if (/registered|exists/i.test(r.error.message)) return { confirm: true };
+          if (/rate|security purposes|seconds/i.test(r.error.message)) throw new Error("Príliš veľa pokusov. Skús to o minútu.");
+          if (/password/i.test(r.error.message)) throw new Error("Heslo je príliš slabé. Použi aspoň 8 znakov, písmeno aj číslicu.");
+          fail(r.error, "Účet sa nepodarilo vytvoriť.");
+        }
+        if (r.data.session) return { session: true };
+        if (r.data.user && r.data.user.identities && !r.data.user.identities.length) return { confirm: true };
+        return { confirm: true };
+      });
+    },
+    resendSignup: function (email) {
+      return sb.auth.resend({ type: "signup", email: email, options: { emailRedirectTo: backUrl() } }).then(function (r) {
+        if (r.error && /rate|security purposes|seconds/i.test(r.error.message)) throw new Error("E-mail sme ti poslali len pred chvíľou. Skús to o minútu.");
+        fail(r.error, "E-mail sa nepodarilo poslať znova.");
+      });
+    },
+    setPassword: function (pw) {
+      return sb.auth.updateUser({ password: pw, data: { has_password: true } }).then(function (r) {
+        if (r.error && /different|same/i.test(r.error.message)) throw new Error("Nové heslo musí byť iné ako to staré.");
+        if (r.error && /weak|characters|length/i.test(r.error.message)) throw new Error("Heslo je príliš slabé. Použi aspoň 8 znakov, písmeno aj číslicu.");
+        if (r.error && /reauthenticat|recent/i.test(r.error.message)) throw new Error("Z bezpečnostných dôvodov sa odhlás a prihlás kódom z e-mailu, potom heslo nastav znova.");
+        fail(r.error, "Heslo sa nepodarilo uložiť."); if (r.data && r.data.user) me = r.data.user;
+        // po zmene hesla sa odhlásia všetky ostatné zariadenia
+        return sb.auth.signOut({ scope: "others" }).then(function () {}, function () {});
+      });
+    },
+    email: function () { return me && me.email; },
+    hasPassword: function () { return !!(me && me.user_metadata && me.user_metadata.has_password); },
+    verifyEmailCode: function (email, code) {
+      return sb.auth.verifyOtp({ email: email, token: code, type: "email" }).then(function (r) { fail(r.error, "Kód nesedí alebo vypršal. Pošli si nový."); });
+    },
+    logout: function () { return sb.auth.signOut(); },
+    // odhlásenie zo všetkých zariadení (napríklad pri strate mobilu)
+    logoutAll: function () { return sb.auth.signOut({ scope: "global" }).then(function (r) { if (r && r.error) fail(r.error, "Odhlásenie sa nepodarilo."); }); },
+    // prihlásenie cez Google alebo Apple: tlačidlá sa ukážu, len keď je poskytovateľ v Supabase zapnutý
+    authProviders: function () {
+      if (!api._prov) api._prov = fetch(C.SUPABASE_URL + "/auth/v1/settings", { headers: { apikey: C.SUPABASE_ANON_KEY } })
+        .then(function (r) { return r.ok ? r.json() : {}; }).then(function (j) { var e = (j && j.external) || {}; return { google: !!e.google, apple: !!e.apple }; })
+        .catch(function () { api._prov = null; return {}; });
+      return api._prov;
+    },
+    oauth: function (provider) {
+      return sb.auth.signInWithOAuth({ provider: provider, options: { redirectTo: backUrl(), scopes: provider === "apple" ? "name email" : undefined, queryParams: provider === "google" ? { prompt: "select_account" } : undefined } })
+        .then(function (r) { fail(r.error, "Prihlásenie sa nepodarilo."); });
+    },
+    userMeta: function () { return (me && me.user_metadata) || {}; },
+    isAdmin: function () { return sb.rpc("admin_status").then(function (r) { return !r.error && r.data && r.data.admin; }); },
+
+    /* ---------- profily ---------- */
+    me: function () { return api.profile(me.id); },
+    profile: function (id) { return api.profiles([id]).then(function (l) { return l[0] || null; }); },
+    profiles: function (ids) {
+      if (!ids.length) return Promise.resolve([]);
+      return sb.from("profiles").select(PROFILE_COLS).in("id", ids).then(function (r) {
+        fail(r.error);
+        var list = r.data || [];
+        return withPrivate(list);
+      });
+    },
+    updateProfile: function (patch) {
+      return sb.from("profiles").update(patch).eq("id", me.id).select(PROFILE_COLS).single().then(function (r) {
+        if (r.error && /duplicate|unique/i.test(r.error.message)) throw new Error("Toto Instagram meno už má niekto iný.");
+        fail(r.error, "Profil sa nepodarilo uložiť.");
+        return withPrivate([r.data]).then(function (l) { return l[0]; });
+      });
+    },
+    uploadAvatar: function (file) {
+      return compress(file, 512, .85).then(function (blob) {
+        var name = "avatar-" + Date.now() + ".jpg", path = me.id + "/" + name;
+        return sb.storage.from("avatars").upload(path, blob, { contentType: "image/jpeg", upsert: true }).then(function (r) {
+          fail(r.error, "Fotku sa nepodarilo nahrať.");
+          return api.updateProfile({ avatar_url: sb.storage.from("avatars").getPublicUrl(path).data.publicUrl }).then(function (p) {
+            // staré profilovky zmažeme, nech na serveri neostávajú
+            sb.storage.from("avatars").list(me.id, { limit: 100 }).then(function (l) {
+              var old = (l.data || []).map(function (f) { return me.id + "/" + f.name; }).filter(function (x) { return x !== path; });
+              if (old.length) sb.storage.from("avatars").remove(old);
+            }).catch(function () {});
+            return p;
+          });
+        });
+      });
+    },
+    searchProfiles: function (q) {
+      q = String(q || "").trim().replace(/^@/, "");
+      if (q.length < 3) return Promise.resolve([]);
+      return sb.rpc("search_profiles", { q: q }).then(function (r) { fail(r.error, "Hľadanie zlyhalo."); return r.data || []; });
+    },
+
+    /* ---------- bicykle: katalóg z elitebiker.sk + vlastné ---------- */
+    catalog: function () {
+      if (!catP) catP = sb.from("catalog_bikes").select("id,name,brand,url,image,ebike,kind").order("name").limit(3000).then(function (r) { fail(r.error, "Ponuku bicyklov sa nepodarilo načítať."); return r.data || []; });
+      return catP.catch(function (e) { catP = null; throw e; });
+    },
+    bikes: function (ids) {
+      if (!ids.length) return Promise.resolve([]);
+      return sb.from("user_bikes").select(BIKE_COLS).in("user_id", ids).order("created_at").then(function (r) { return r.error ? [] : r.data; });
+    },
+    addBike: function (b) {
+      return sb.from("user_bikes").insert({ name: b.catalog_id ? "" : String(b.name || "").trim(), catalog_id: b.catalog_id || null, type: b.type || null }).select(BIKE_COLS).single()
+        .then(function (r) { fail(r.error, "Bicykel sa nepodarilo pridať."); return r.data; });
+    },
+    setBikeType: function (id, type) {
+      return sb.from("user_bikes").update({ type: type }).eq("id", id).select(BIKE_COLS).single().then(function (r) { fail(r.error, "Typ bicykla sa nepodarilo uložiť."); return r.data; });
+    },
+    deleteBike: function (id) { return sb.from("user_bikes").delete().eq("id", id).then(function (r) { fail(r.error); }); },
+
+    /* ---------- poloha pre verejné jazdy (ukladá sa len približne, na ~1 km) ---------- */
+    location: function () {
+      return sb.from("user_locations").select("lat,lng,label").eq("user_id", me.id).maybeSingle().then(function (r) { return r.error ? null : r.data; });
+    },
+    // obce Slovenska pre výber mesta (hľadá sa bez ohľadu na diakritiku)
+    places: function (q) { return sb.rpc("search_places", { q: q }).then(function (r) { return r.error ? [] : r.data || []; }); },
+    setLocation: function (l) {
+      var row = { user_id: me.id, lat: Math.round(l.lat * 100) / 100, lng: Math.round(l.lng * 100) / 100, label: String(l.label || "").slice(0, 80) || null };
+      return sb.from("user_locations").upsert(row).select("lat,lng,label").single().then(function (r) { fail(r.error, "Polohu sa nepodarilo uložiť."); return r.data; });
+    },
+    clearLocation: function () { return sb.from("user_locations").delete().eq("user_id", me.id).then(function (r) { fail(r.error); }); },
+
+    /* ---------- pozývacie odkazy ---------- */
+    createInvite: function (rideId) {
+      var q = sb.from("invites").select("code").eq("inviter", me.id).gt("expires_at", new Date(Date.now() + (rideId ? 0 : 7 * 864e5)).toISOString()).order("created_at", { ascending: false }).limit(1);
+      q = rideId ? q.eq("ride_id", rideId) : q.is("ride_id", null);
+      return q.then(function (r) {
+        if (r.data && r.data.length) return r.data[0].code;
+        return sb.from("invites").insert({ ride_id: rideId || null }).select("code").single().then(function (x) { fail(x.error, "Odkaz sa nepodarilo vytvoriť."); return x.data.code; });
+      });
+    },
+    inviteInfo: function (code) { return sb.rpc("invite_info", { p_code: code }).then(function (r) { return r.error ? null : r.data; }); },
+    redeemInvite: function (code) { return sb.rpc("redeem_invite", { p_code: code }).then(function (r) { fail(r.error, "Pozvánku sa nepodarilo uplatniť."); return r.data; }); },
+
+    /* ---------- priatelia a skratky ---------- */
+    friendships: function () {
+      return sb.from("friendships").select("*").then(function (r) {
+        fail(r.error);
+        var out = { friends: [], incoming: [], outgoing: [] };
+        r.data.forEach(function (f) {
+          var other = f.requester === me.id ? f.addressee : f.requester;
+          if (f.status === "accepted") out.friends.push(other);
+          else if (f.addressee === me.id) out.incoming.push(other); else out.outgoing.push(other);
+        });
+        return out;
+      });
+    },
+    requestFriend: function (id) {
+      return sb.from("friendships").select("*").or("and(requester.eq." + id + ",addressee.eq." + me.id + ")").maybeSingle().then(function (r) {
+        if (r.data && r.data.status === "pending") return api.acceptFriend(id); // obaja sa pridali navzájom
+        return sb.from("friendships").insert({ requester: me.id, addressee: id }).then(function (x) {
+          if (x.error && !/duplicate/i.test(x.error.message)) fail(x.error, "Žiadosť sa nepodarilo odoslať.");
+        });
+      });
+    },
+    acceptFriend: function (id) {
+      return sb.from("friendships").update({ status: "accepted" }).eq("requester", id).eq("addressee", me.id).then(function (r) { fail(r.error); });
+    },
+    removeFriend: function (id) {
+      return sb.from("friendships").delete().or("and(requester.eq." + id + ",addressee.eq." + me.id + "),and(requester.eq." + me.id + ",addressee.eq." + id + ")").then(function (r) { fail(r.error); });
+    },
+    shortcuts: function () { return sb.from("shortcuts").select("*").order("created_at").then(function (r) { fail(r.error); return r.data; }); },
+    saveShortcut: function (s) { return sb.from("shortcuts").insert({ name: s.name, emoji: s.emoji || "⭐", members: s.members }).select().single().then(function (r) { fail(r.error); return r.data; }); },
+    deleteShortcut: function (id) { return sb.from("shortcuts").delete().eq("id", id).then(function (r) { fail(r.error); }); },
+
+    /* ---------- jazdy ---------- */
+    rides: function () {
+      var since = new Date(Date.now() - 7 * 864e5).toISOString();
+      return sb.from("rides").select("*, ride_participants(user_id), ride_maybe(user_id), ride_audience(user_id)").gte("ends_at", since).order("starts_at").then(function (r) {
+        fail(r.error, "Jazdy sa nepodarilo načítať."); return r.data.map(normRide);
+      });
+    },
+    myTemplates: function () {
+      return sb.from("rides").select("*, ride_participants(user_id)").eq("host", me.id).order("starts_at", { ascending: false }).limit(40).then(function (r) {
+        fail(r.error); return r.data.map(normRide);
+      });
+    },
+    createRide: function (d, audience) {
+      var row = {
+        host: me.id, type: d.type, title: d.title, note: d.note || null, starts_at: d.starts_at, ends_at: d.ends_at,
+        meet_lat: d.meet.lat, meet_lng: d.meet.lng, meet_label: d.meet.label, route: d.route || null,
+        distance_km: d.distance_km || null, elevation_m: d.elevation_m || null, max_people: d.max_people || null, link_url: d.link_url || null,
+        pace: d.pace || null, visibility: d.visibility || "friends", audience_kind: d.audience_kind || "pick"
+      };
+      if (d.official) row.official = true;
+      if (d.trails && d.trails.length) row.trails = d.trails;
+      if (d.tags && d.tags.length) row.tags = d.tags;
+      if (d.stops && d.stops.length) row.stops = d.stops;
+      return sb.from("rides").insert(row).select().single().then(function (r) {
+        fail(r.error, "Jazdu sa nepodarilo uložiť.");
+        var rows = audience.map(function (u) { return { ride_id: r.data.id, user_id: u, invited_by: me.id }; });
+        return (rows.length ? sb.from("ride_audience").insert(rows) : Promise.resolve({})).then(function (x) { fail(x.error, "Jazda je uložená, ale pozvánky sa nepodarilo poslať."); return r.data.id; });
+      });
+    },
+    // organizátor upraví jazdu; posielame len polia, ktoré prišli
+    updateRide: function (id, d) {
+      var row = {};
+      ["type", "title", "note", "starts_at", "ends_at", "route", "distance_km", "elevation_m", "max_people", "link_url", "pace", "trails", "tags", "stops"].forEach(function (k) { if (k in d) row[k] = d[k]; });
+      if (d.meet) { row.meet_lat = d.meet.lat; row.meet_lng = d.meet.lng; row.meet_label = d.meet.label; }
+      return sb.from("rides").update(row).eq("id", id).select("id").then(function (r) {
+        fail(r.error, "Zmeny sa nepodarilo uložiť.");
+        if (!r.data || !r.data.length) throw new Error("Túto jazdu môže upraviť len organizátor.");
+      });
+    },
+    setVisibility: function (id, v) { return sb.from("rides").update({ visibility: v }).eq("id", id).then(function (r) { fail(r.error, "Zmenu sa nepodarilo uložiť."); }); },
+    cancelRide: function (id) { return sb.from("rides").delete().eq("id", id).then(function (r) { fail(r.error); }); },
+    joinRide: function (id) { return sb.from("ride_participants").insert({ ride_id: id, user_id: me.id }).then(function (r) { fail(r.error, "Pridať sa nepodarilo."); }); },
+    // „možno“: nezaberá miesto; po pridaní sa k jazde ho server sám zmaže
+    maybe: function (id, on) {
+      if (on) return sb.from("ride_maybe").insert({ ride_id: id }).then(function (r) { if (r.error && r.error.code === "23505") return; fail(r.error, "Nepodarilo sa uložiť."); });
+      return sb.from("ride_maybe").delete().eq("ride_id", id).eq("user_id", me.id).then(function (r) { fail(r.error, "Nepodarilo sa uložiť."); });
+    },
+    leaveRide: function (id) { return sb.from("ride_participants").delete().eq("ride_id", id).eq("user_id", me.id).then(function (r) { fail(r.error); }); },
+    invite: function (id, ids) {
+      return sb.from("ride_audience").upsert(ids.map(function (u) { return { ride_id: id, user_id: u, invited_by: me.id }; }), { onConflict: "ride_id,user_id", ignoreDuplicates: true })
+        .then(function (r) { fail(r.error, "Pozvánky sa nepodarilo poslať."); });
+    },
+
+    /* ---------- chat ---------- */
+    messages: function (rideId) { return sb.from("messages").select("*").eq("ride_id", rideId).order("created_at").limit(300).then(function (r) { fail(r.error); return r.data; }); },
+    sendMessage: function (rideId, body) { return sb.from("messages").insert({ ride_id: rideId, user_id: me.id, body: body }).then(function (r) { fail(r.error, "Správu sa nepodarilo odoslať."); }); },
+    subscribeMessages: function (rideId, cb) {
+      var ch = sb.channel("chat-" + rideId).on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: "ride_id=eq." + rideId }, function (p) { cb(p.new); }).subscribe();
+      return function () { sb.removeChannel(ch); };
+    },
+    subscribeChanges: function (cb) {
+      var t, fire = function () { clearTimeout(t); t = setTimeout(cb, 400); };
+      var ch = sb.channel("zmeny");
+      ["rides", "ride_participants", "ride_audience", "friendships", "ride_photos"].forEach(function (tb) { ch.on("postgres_changes", { event: "*", schema: "public", table: tb }, fire); });
+      ch.subscribe();
+      return function () { sb.removeChannel(ch); };
+    },
+
+    /* ---------- fotky ---------- */
+    photos: function (rideId) {
+      return sb.from("ride_photos").select("*").eq("ride_id", rideId).order("created_at", { ascending: false }).then(function (r) {
+        fail(r.error); if (!r.data.length) return [];
+        return sb.storage.from("ride-photos").createSignedUrls(r.data.map(function (p) { return p.path; }), 3600).then(function (s) {
+          var map = {}; (s.data || []).forEach(function (x) { map[x.path] = x.signedUrl; });
+          return r.data.map(function (p) { return { id: p.id, user_id: p.user_id, path: p.path, url: map[p.path] }; });
+        });
+      });
+    },
+    uploadPhoto: function (rideId, file) {
+      return compress(file, 1600, .82).then(function (blob) {
+        var path = rideId + "/" + me.id + "/" + Date.now() + "-" + rnd().slice(0, 6) + ".jpg";
+        return sb.storage.from("ride-photos").upload(path, blob, { contentType: "image/jpeg" }).then(function (r) {
+          fail(r.error, "Fotku sa nepodarilo nahrať.");
+          return sb.from("ride_photos").insert({ ride_id: rideId, user_id: me.id, path: path }).then(function (x) { fail(x.error); });
+        });
+      });
+    },
+    deletePhoto: function (p) {
+      return sb.storage.from("ride-photos").remove([p.path]).then(function () { return sb.from("ride_photos").delete().eq("id", p.id); }).then(function (r) { fail(r.error); });
+    },
+
+    /* ---------- Klub: body počíta server (nedajú sa podvrhnúť) ---------- */
+    points: function () { return sb.rpc("my_points").then(function (r) { fail(r.error, "Body sa nepodarilo načítať."); return r.data; }); },
+
+    /* ---------- telefón: vidia ho len spolujazdci ---------- */
+    // telefón je v databáze zašifrovaný, číta a zapisuje sa len cez funkcie servera
+    myPhone: function () { return sb.rpc("my_phone").then(function (r) { return r.error ? null : r.data || null; }); },
+    setPhone: function (phone) { return sb.rpc("set_phone", { p_phone: phone || null }).then(function (r) { fail(r.error, "Telefónne číslo sa nepodarilo uložiť."); }); },
+    // kópia všetkých mojich údajov (právo na prístup a prenosnosť)
+    exportData: function () { return sb.rpc("export_my_data").then(function (r) { fail(r.error, "Údaje sa nepodarilo pripraviť."); return r.data; }); },
+    ridePhones: function (rideId) {
+      return sb.rpc("ride_phones", { p_ride: rideId }).then(function (r) { var m = {}; (r.data || []).forEach(function (x) { m[x.user_id] = x.phone; }); return m; });
+    },
+    // stav v deň jazdy: na mieste, meškám, nestihnem (správa do chatu a upozornenie ostatným)
+    rideStatus: function (rideId, status) {
+      return sb.rpc("ride_status", { p_ride: rideId, p_status: status }).then(function (r) { fail(r.error, "Stav sa nepodarilo poslať."); return r.data || {}; });
+    },
+
+    /* ---------- jazdy spolu: spolujazda, čo zobrať, zametač, spoluorganizátor, terén, pripomenutie ---------- */
+    rideExtras: function (rideId) { return rpc("ride_extras", { p_ride: rideId }, "Spolujazdu sa nepodarilo načítať."); },
+    carOffer: function (rideId, seats, bikes, from) { return rpc("car_offer", { p_ride: rideId, p_seats: seats, p_bikes: bikes, p_from: from || null }, "Ponuku sa nepodarilo uložiť."); },
+    carCancel: function (rideId) { return rpc("car_cancel", { p_ride: rideId }, "Nepodarilo sa zrušiť."); },
+    carSeat: function (carId, on) { return rpc("car_seat", { p_car: carId, p_on: !!on }, "Nepodarilo sa uložiť."); },
+    liftNeed: function (rideId, on, from) { return rpc("lift_need", { p_ride: rideId, p_on: !!on, p_from: from || null }, "Nepodarilo sa uložiť."); },
+    itemAdd: function (rideId, label, take) { return rpc("ride_item_add", { p_ride: rideId, p_label: label, p_take: !!take }, "Vec sa nepodarilo pridať."); },
+    itemTake: function (itemId, on) { return rpc("ride_item_take", { p_item: itemId, p_on: !!on }, "Nepodarilo sa uložiť."); },
+    itemDel: function (itemId) { return rpc("ride_item_del", { p_item: itemId }, "Vec sa nepodarilo odstrániť."); },
+    sweeper: function (rideId, on) { return rpc("ride_sweeper", { p_ride: rideId, p_on: !!on }, "Nepodarilo sa uložiť."); },
+    cohost: function (rideId, userId) { return rpc("ride_cohost", { p_ride: rideId, p_user: userId || null }, "Spoluorganizátora sa nepodarilo uložiť."); },
+    trailReport: function (rideId, cond) { return rpc("trail_report", { p_ride: rideId, p_cond: cond }, "Terén sa nepodarilo uložiť."); },
+    trailNear: function (lat, lng) { return sb.rpc("trail_near", { p_lat: lat, p_lng: lng }).then(function (r) { return r.error ? [] : r.data || []; }); },
+    myTrail: function () { return sb.rpc("my_trail").then(function (r) { return r.error ? {} : r.data || {}; }); },
+    nudges: function () { return sb.rpc("my_nudges").then(function (r) { return r.error ? [] : r.data || []; }); },
+
+    /* ---------- mám čas (vidia len priatelia) ---------- */
+    availability: function () {
+      var d = new Date(), today = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      return sb.from("availability").select("user_id,day,from_time,note").gte("day", today).then(function (r) { return r.error ? [] : r.data || []; });
+    },
+    setAvailability: function (day, from, note) {
+      return sb.rpc("set_availability", { p_day: day, p_from: from || null, p_note: note || null }).then(function (r) { fail(r.error, "Nepodarilo sa uložiť."); return r.data; });
+    },
+    clearAvailability: function (day) { return sb.from("availability").delete().eq("user_id", me.id).eq("day", day).then(function (r) { fail(r.error, "Nepodarilo sa zrušiť."); }); },
+
+    /* ---------- nahlásenie a blokovanie ---------- */
+    // bez .select(): nahlásenie si späť prečítať nemôže nikto okrem administrácie
+    report: function (o) {
+      var row = { reason: o.reason, note: o.note || null };
+      if (o.user) row.target_user = o.user; else row.ride_id = o.ride;
+      return sb.from("reports").insert(row).then(function (r) { fail(r.error, "Nahlásenie sa nepodarilo odoslať."); });
+    },
+    blocks: function () { return sb.from("blocks").select("blocked").then(function (r) { return r.error ? [] : (r.data || []).map(function (x) { return x.blocked; }); }); },
+    block: function (id) {
+      return sb.from("blocks").insert({ blocked: id }).then(function (r) { if (r.error && r.error.code === "23505") return; fail(r.error, "Zablokovanie sa nepodarilo."); });
+    },
+    unblock: function (id) { return sb.from("blocks").delete().eq("blocker", me.id).eq("blocked", id).then(function (r) { fail(r.error, "Odblokovanie sa nepodarilo."); }); },
+
+    // analytické cookies (len so súhlasom): súčty udalostí bez prihlásenia, takže server nevie, od koho prišli
+    usage: function (list) {
+      if (!list || !list.length) return Promise.resolve();
+      var h = { apikey: C.SUPABASE_ANON_KEY, "Content-Type": "application/json" };
+      if (!/^sb_/.test(C.SUPABASE_ANON_KEY)) h.Authorization = "Bearer " + C.SUPABASE_ANON_KEY;
+      try {
+        return fetch(C.SUPABASE_URL + "/rest/v1/rpc/usage", { method: "POST", keepalive: true, credentials: "omit", headers: h, body: JSON.stringify({ p: list }) }).then(function () {}, function () {});
+      } catch (e) { return Promise.resolve(); }
+    },
+    // záznam voľby cookies (dôkaz súhlasu): len náhodný identifikátor z cookie, voľba a verzia lišty, bez prihlásenia
+    consentLog: function (id, on, version) {
+      var h = { apikey: C.SUPABASE_ANON_KEY, "Content-Type": "application/json" };
+      if (!/^sb_/.test(C.SUPABASE_ANON_KEY)) h.Authorization = "Bearer " + C.SUPABASE_ANON_KEY;
+      try {
+        return fetch(C.SUPABASE_URL + "/rest/v1/rpc/consent_log", { method: "POST", keepalive: true, credentials: "omit", headers: h, body: JSON.stringify({ p_id: id, p_analytics: !!on, p_version: version }) }).then(function () {}, function () {});
+      } catch (e) { return Promise.resolve(); }
+    },
+    // súhrnná návštevnosť (len so súhlasom s analytickými cookies)
+    track: function (kind, platform, standalone) {
+      return sb.rpc("track", { p_kind: kind || "open", p_platform: platform || null, p_standalone: !!standalone }).then(function () {}, function () {});
+    },
+
+    /* ---------- počasie a upozornenia ---------- */
+    weather: function (points) { return fn("weather", { points: points }).then(function (d) { return d.data || {}; }); },
+    pushSave: function (sub, device) {
+      var j = sub.toJSON();
+      return sb.rpc("save_push_subscription", { p_endpoint: j.endpoint, p_p256dh: j.keys.p256dh, p_auth: j.keys.auth, p_device: device || null }).then(function (r) { fail(r.error, "Upozornenia sa nepodarilo zapnúť."); });
+    },
+    pushDevices: function () {
+      return sb.from("push_subscriptions").select("endpoint,device,created_at,last_status,last_error,last_at").order("created_at", { ascending: false }).then(function (r) { return r.error ? [] : r.data; });
+    },
+    // na čo chcem upozornenia (null = ešte nenastavené, teda všetko)
+    prefs: function () {
+      return sb.from("notify_prefs").select("push").eq("user_id", me.id).maybeSingle().then(function (r) { fail(r.error, "Nastavenia upozornení sa nepodarilo načítať."); return r.data ? r.data.push : null; });
+    },
+    savePrefs: function (push) {
+      var msg = "Nastavenie sa nepodarilo uložiť.";
+      return sb.from("notify_prefs").update({ push: push }).eq("user_id", me.id).select("user_id").then(function (r) {
+        fail(r.error, msg);
+        if (r.data && r.data.length) return;
+        return sb.from("notify_prefs").insert({ user_id: me.id, push: push }).then(function (x) { fail(x.error, msg); });
+      });
+    },
+    pushDelete: function (endpoint) { return sb.from("push_subscriptions").delete().eq("endpoint", endpoint).then(function (r) { fail(r.error); }); },
+    pushTest: function () { return fn("weather-alerts", { test: true }); },
+
+    /* ---------- účet ---------- */
+    deleteAccount: function () { return fn("delete-account").then(function () { return sb.auth.signOut(); }); }
+  };
+  window.EBApi = api;
+})();
