@@ -233,15 +233,15 @@
         '<span class="fl">Heslo</span>' + (m === "up" ? pwField("a-pw", "new-password", "aspoň 8 znakov, písmeno a číslica") : pwField("a-pw", "current-password", "tvoje heslo")) +
         '<button class="btn full" type="submit" style="margin-top:16px">' + (m === "up" ? "Vytvoriť účet" : "Prihlásiť sa") + "</button></form>" +
         (m === "in" ? '<p class="alt"><button type="button" class="link-plain" data-act="lg" data-m="code">Zabudnuté heslo? Prihlás sa kódom z e-mailu</button></p>'
-          : '<p class="legal" style="margin-top:12px">Na e-mail ti príde 6-miestny kód na potvrdenie. Vytvorením účtu súhlasíš so <a class="link-plain" href="privacy.html" target="_blank">zásadami ochrany súkromia</a>.</p>');
+          : '<p class="legal" style="margin-top:12px">Na e-mail ti príde kód na potvrdenie. Vytvorením účtu súhlasíš so <a class="link-plain" href="privacy.html" target="_blank">zásadami ochrany súkromia</a>.</p>');
     } else if (m === "code") {
-      body = '<h2 class="lg-h">Prihlásenie kódom</h2><p class="lg-p">Pošleme ti 6-miestny kód na e-mail. Po prihlásení si môžeš nastaviť nové heslo.</p>' +
+      body = '<h2 class="lg-h">Prihlásenie kódom</h2><p class="lg-p">Pošleme ti kód na e-mail. Po prihlásení si môžeš nastaviť nové heslo.</p>' +
         '<form id="codeReq" novalidate><span class="fl">E-mail</span><input class="inp" id="c-email" type="email" required autocomplete="email" inputmode="email" placeholder="tvoj@email.sk" value="' + esc(LG.email) + '">' +
         '<button class="btn full" type="submit" style="margin-top:12px">' + (LG.sent ? "Poslať kód znova" : "Poslať kód") + "</button></form>" +
         (LG.sent ? codeForm("Prihlásiť sa") : "") +
         '<p class="alt"><button type="button" class="link-plain" data-act="lg" data-m="in">← Späť na prihlásenie heslom</button></p>';
     } else {
-      body = '<h2 class="lg-h">Potvrď svoj e-mail</h2><p class="lg-p">Na <b>' + esc(LG.email) + '</b> sme poslali 6-miestny kód. Opíš ho sem alebo ťukni na tlačidlo v e-maile. Pozri aj priečinok Spam. Ak už s týmto e-mailom máš účet, kód nepríde: prihlás sa heslom alebo kódom.</p>' +
+      body = '<h2 class="lg-h">Potvrď svoj e-mail</h2><p class="lg-p">Na <b>' + esc(LG.email) + '</b> sme poslali kód. Opíš ho sem alebo ťukni na tlačidlo v e-maile. Pozri aj priečinok Spam. Ak už s týmto e-mailom máš účet, kód nepríde: prihlás sa heslom alebo kódom.</p>' +
         codeForm("Potvrdiť a pokračovať") +
         '<p class="alt"><button type="button" class="link-plain" data-act="lg-resend">Poslať kód znova</button> · <button type="button" class="link-plain" data-act="lg" data-m="up">Zmeniť e-mail</button></p>';
     }
@@ -286,7 +286,7 @@
     if (cf) cf.onsubmit = function (e) {
       e.preventDefault();
       var v = $("otp").value.replace(/\D/g, ""), b = cf.querySelector("button");
-      if (v.length < 6) { toast("Kód má 6 číslic."); return; }
+      if (v.length < 6) { toast("Kód je príliš krátky, skontroluj ho v e-maile."); return; }
       spin(b);
       api.verifyEmailCode(LG.email, v).then(function () {
         if (LG.mode === "code") try { sessionStorage.setItem("eb_setpw", "1"); } catch (x) {}
@@ -303,7 +303,7 @@
       '</div><div class="ordiv"><span>alebo e-mailom</span></div>';
   }
   function codeForm(label) {
-    return '<form id="codeForm" novalidate style="margin-top:14px"><span class="fl">Kód z e-mailu</span><input class="inp code" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456">' +
+    return '<form id="codeForm" novalidate style="margin-top:14px"><span class="fl">Kód z e-mailu</span><input class="inp code" id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="12345678">' +
       '<button class="btn full" type="submit" style="margin-top:12px">' + label + "</button></form>";
   }
   function invCard(i) {
