@@ -66,16 +66,19 @@
     };
   }
   function compress(file, max, q) {
-    return new Promise(function (res) {
+    // fotka sa vždy prekreslí v telefóne, takže sa nikam nenahrajú skryté údaje fotoaparátu (napríklad poloha z EXIF);
+    // ak sa to nedá, originál radšej nenahráme vôbec
+    var bad = function () { return new Error("Túto fotku sa nepodarilo spracovať. Skús inú, napríklad JPG alebo PNG."); };
+    return new Promise(function (res, rej) {
       var img = new Image(), url = URL.createObjectURL(file);
       img.onload = function () {
         var s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
         c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(url);
-        c.toBlob(function (b) { res(b || file); }, "image/jpeg", q || 0.85);
+        c.toBlob(function (b) { if (b) res(b); else rej(bad()); }, "image/jpeg", q || 0.85);
       };
-      img.onerror = function () { URL.revokeObjectURL(url); res(file); };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(bad()); };
       img.src = url;
     });
   }

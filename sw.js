@@ -81,6 +81,9 @@ self.addEventListener("push", function (e) {
 self.addEventListener("notificationclick", function (e) {
   e.notification.close();
   var url = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
+  // staré odkazy z upozornení (adresa pred 18. 11. 2026) otvoríme rovno v appke na novej adrese
+  var OLD = "https://elitebikersk.github.io/elitebiker-ride/";
+  if (url.indexOf(OLD) === 0) url = self.registration.scope + url.slice(OLD.length);
   // odkaz mimo appky (napríklad objednanie servisu v e-shope) otvoríme zvlášť
   if (url.indexOf(self.registration.scope) !== 0) { e.waitUntil(self.clients.openWindow(url)); return; }
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function (list) {

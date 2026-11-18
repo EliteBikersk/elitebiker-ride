@@ -233,7 +233,7 @@
         '<span class="fl">Heslo</span>' + (m === "up" ? pwField("a-pw", "new-password", "aspoň 8 znakov, písmeno a číslica") : pwField("a-pw", "current-password", "tvoje heslo")) +
         '<button class="btn full" type="submit" style="margin-top:16px">' + (m === "up" ? "Vytvoriť účet" : "Prihlásiť sa") + "</button></form>" +
         (m === "in" ? '<p class="alt"><button type="button" class="link-plain" data-act="lg" data-m="code">Zabudnuté heslo? Prihlás sa kódom z e-mailu</button></p>'
-          : '<p class="legal" style="margin-top:12px">Na e-mail ti príde kód na potvrdenie. Vytvorením účtu súhlasíš so <a class="link-plain" href="privacy.html" target="_blank">zásadami ochrany súkromia</a>.</p>');
+          : '<p class="legal" style="margin-top:12px">Na e-mail ti príde kód na potvrdenie. Vytvorením účtu potvrdzuješ, že máš aspoň 16 rokov. Ako chránime tvoje údaje, nájdeš v <a class="link-plain" href="privacy.html" target="_blank">zásadách ochrany súkromia</a>.</p>');
     } else if (m === "code") {
       body = '<h2 class="lg-h">Prihlásenie kódom</h2><p class="lg-p">Pošleme ti kód na e-mail. Po prihlásení si môžeš nastaviť nové heslo.</p>' +
         '<form id="codeReq" novalidate><span class="fl">E-mail</span><input class="inp" id="c-email" type="email" required autocomplete="email" inputmode="email" placeholder="tvoj@email.sk" value="' + esc(LG.email) + '">' +
