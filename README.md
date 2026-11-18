@@ -4,6 +4,6 @@ Appka od [EliteBiker](https://www.elitebiker.sk/) na spoločné jazdy s partiou:
 
 **Otvoriť appku:** https://www.elitebiker.sk/ride/
 
-Ochrana súkromia a cookies: https://elitebikersk.github.io/elitebiker-ride/privacy.html
+Ochrana súkromia a cookies: https://ride.elitebiker.sk/privacy.html
 
 © EliteBiker s.r.o.
