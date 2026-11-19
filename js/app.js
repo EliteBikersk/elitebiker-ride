@@ -342,7 +342,7 @@
       '<p class="sub" style="margin-bottom:4px">' + (has ? "Zadaj nové heslo." : "S heslom sa nabudúce prihlásiš hneď, bez kódu z e-mailu.") + "</p>" +
       '<form id="pwForm" novalidate><input type="email" autocomplete="username" value="' + esc(api.email ? api.email() : "") + '" hidden><span class="fl">Nové heslo</span>' + pwField("n-pw", "new-password", "aspoň 8 znakov, písmeno a číslica") +
       '<div id="pwMfa" hidden><span class="fl">Kód z overovacej aplikácie</span><input class="inp code" id="n-totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">' +
-      '<p class="sub" style="margin-top:6px">Máš zapnuté dvojstupňové overenie, preto pri zmene hesla treba aj 6-miestny kód z aplikácie (napríklad Google Authenticator).</p></div>' +
+      '<p class="sub" style="margin-top:6px">Máš zapnuté dvojstupňové overenie (kvôli administrácii), preto pri zmene hesla treba aj 6-miestny kód. Kód nepríde e-mailom ani SMS: nájdeš ho v overovacej aplikácii v mobile (napríklad Google Authenticator alebo Heslá v iPhone), v zázname s tvojím e-mailom, ktorý si pridal pri prvom vstupe do administrácie. Kód sa mení každých 30 sekúnd.</p></div>' +
       '<button class="btn full" type="submit" style="margin-top:16px">Uložiť heslo</button><div class="form-msg" id="pwMsg" role="alert" aria-live="assertive"></div></form></div>';
   }
   function openPw() {
