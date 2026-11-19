@@ -131,6 +131,8 @@
       D.me = D.me || blankMe(email);
       save(); return wait().then(function () { setTimeout(function () { location.reload(); }, 900); });
     },
+    mfaNeeded: function () { return Promise.resolve(null); },
+    mfaVerify: function () { return wait(); },
     signIn: function (email) { D.me = D.me || blankMe(email); D.me.has_password = true; save(); return wait(); },
     signUp: function (email) { D.me = blankMe(email); D.me.has_password = true; save(); return wait({ session: true }); },
     resendSignup: function () { return wait(); },

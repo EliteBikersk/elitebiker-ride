@@ -341,17 +341,37 @@
     return '<div class="sh-top"><button class="icb" data-act="closem" aria-label="Zavrieť">' + IC.close + "</button><b>" + (has ? "Zmeniť heslo" : "Nastaviť heslo") + '</b></div><div class="pad">' +
       '<p class="sub" style="margin-bottom:4px">' + (has ? "Zadaj nové heslo." : "S heslom sa nabudúce prihlásiš hneď, bez kódu z e-mailu.") + "</p>" +
       '<form id="pwForm" novalidate><input type="email" autocomplete="username" value="' + esc(api.email ? api.email() : "") + '" hidden><span class="fl">Nové heslo</span>' + pwField("n-pw", "new-password", "aspoň 8 znakov, písmeno a číslica") +
-      '<button class="btn full" type="submit" style="margin-top:16px">Uložiť heslo</button></form></div>';
+      '<div id="pwMfa" hidden><span class="fl">Kód z overovacej aplikácie</span><input class="inp code" id="n-totp" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">' +
+      '<p class="sub" style="margin-top:6px">Máš zapnuté dvojstupňové overenie, preto pri zmene hesla treba aj 6-miestny kód z aplikácie (napríklad Google Authenticator).</p></div>' +
+      '<button class="btn full" type="submit" style="margin-top:16px">Uložiť heslo</button><div class="form-msg" id="pwMsg" role="alert" aria-live="assertive"></div></form></div>';
   }
   function openPw() {
     openModal(vPw());
-    var f = $("pwForm");
+    var f = $("pwForm"), fid = null;
+    function msg(h) { var el = $("pwMsg"); if (el) el.innerHTML = h || ""; }
+    function showMfa(id) { fid = id; var m = $("pwMfa"); if (m) m.hidden = false; }
+    if (api.mfaNeeded) api.mfaNeeded().then(function (id) { if (id) showMfa(id); });
+    f.oninput = function () { msg(""); };
     f.onsubmit = function (e) {
-      e.preventDefault(); var pw = $("n-pw").value, b = f.querySelector("button[type=submit]");
-      if (pwBad(pw)) { toast(pwBad(pw)); return; }
+      e.preventDefault(); var pw = $("n-pw").value, b = f.querySelector("button[type=submit]"), code = $("n-totp") ? $("n-totp").value.replace(/\D/g, "") : "";
+      msg("");
+      if (pwBad(pw)) { msg(esc(pwBad(pw))); return; }
+      if (fid && code.length !== 6) { msg("Zadaj 6-miestny kód z overovacej aplikácie."); $("n-totp").focus(); return; }
       spin(b);
-      api.setPassword(pw).then(function () { closeModal(); toast("Heslo uložené. Ostatné zariadenia sme pre istotu odhlásili."); if (S.tab === "profile") render(true); })
-        .catch(function (x) { unspin(b); err(x); });
+      (fid ? api.mfaVerify(fid, code) : Promise.resolve()).then(function () { return api.setPassword(pw); })
+        .then(function () { closeModal(); toast("Heslo uložené. Ostatné zariadenia sme pre istotu odhlásili."); if (S.tab === "profile") render(true); })
+        .catch(function (x) {
+          unspin(b);
+          if (x && x.code === "mfa") {
+            // overovaciu aplikáciu sme vopred nezistili: vypýtame kód teraz
+            api.mfaNeeded().then(function (id) {
+              if (id) { showMfa(id); msg("Zadaj kód z overovacej aplikácie a ulož heslo znova."); $("n-totp").focus(); }
+              else msg("Heslo sa nepodarilo uložiť. Odhlás sa, prihlás kódom z e-mailu a skús to znova.");
+            });
+            return;
+          }
+          msg(esc(x && x.message || "Heslo sa nepodarilo uložiť."));
+        });
     };
   }
   function needsOnboarding() { return !S.me || !S.me.display_name || !S.me.city || (!S.me.ig_username && !S.me.fb_name); }

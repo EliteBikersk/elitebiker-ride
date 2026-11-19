@@ -130,8 +130,27 @@
         fail(r.error, "E-mail sa nepodarilo poslať znova.");
       });
     },
+    // účet s overovacou aplikáciou (admin): zmena hesla len po zadaní kódu z aplikácie (Supabase vyžaduje aal2)
+    mfaNeeded: function () {
+      if (!sb.auth.mfa) return Promise.resolve(null);
+      return sb.auth.mfa.getAuthenticatorAssuranceLevel().then(function (r) {
+        var d = r && r.data;
+        if (!d || d.currentLevel === "aal2" || d.nextLevel !== "aal2") return null;
+        return sb.auth.mfa.listFactors().then(function (x) {
+          var f = ((x.data && x.data.totp) || []).filter(function (t) { return t.status === "verified"; })[0];
+          return f ? f.id : null;
+        });
+      }).catch(function () { return null; });
+    },
+    mfaVerify: function (factorId, code) {
+      return sb.auth.mfa.challengeAndVerify({ factorId: factorId, code: String(code || "").replace(/\D/g, "") }).then(function (r) {
+        if (r.error && /invalid|expired|code/i.test(r.error.message)) throw new Error("Kód z overovacej aplikácie nesedí. Zadaj aktuálny kód.");
+        fail(r.error, "Kód sa nepodarilo overiť. Skús to znova.");
+      });
+    },
     setPassword: function (pw) {
       return sb.auth.updateUser({ password: pw, data: { has_password: true } }).then(function (r) {
+        if (r.error && (r.error.code === "insufficient_aal" || /aal2/i.test(r.error.message))) { var m = new Error("Zadaj kód z overovacej aplikácie."); m.code = "mfa"; throw m; }
         if (r.error && /different|same/i.test(r.error.message)) throw new Error("Nové heslo musí byť iné ako to staré.");
         if (r.error && /weak|characters|length/i.test(r.error.message)) throw new Error("Heslo je príliš slabé. Použi aspoň 8 znakov, písmeno aj číslicu.");
         if (r.error && /reauthenticat|recent/i.test(r.error.message)) throw new Error("Z bezpečnostných dôvodov sa odhlás a prihlás kódom z e-mailu, potom heslo nastav znova.");
