@@ -86,8 +86,8 @@
   /* ---------------- pomocníci ---------------- */
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
-  var tt; function toast(m) { var t = $("toast"); t.querySelector("span").innerHTML = m; t.classList.add("show"); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove("show"); }, 3200); }
-  function err(e) { console.error(e); try { ev("e_ui"); } catch (x) {} toast(esc(e && e.message || "Niečo sa pokazilo. Skús to znova.")); }
+  var tt; function toast(m, bad) { var t = $("toast"); t.querySelector("span").innerHTML = m; t.querySelector("i").textContent = bad ? "!" : "✓"; t.classList.toggle("bad", !!bad); t.classList.add("show"); clearTimeout(tt); tt = setTimeout(function () { t.classList.remove("show"); }, 3200); }
+  function err(e) { console.error(e); try { ev("e_ui"); } catch (x) {} toast(esc(e && e.message || "Niečo sa pokazilo. Skús to znova."), true); }
   function day0(d) { var x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
   function dOff(iso) { return Math.round((day0(iso) - day0(new Date())) / 864e5); }
   function hm(iso) { return new Date(iso).toLocaleTimeString("sk-SK", { hour: "2-digit", minute: "2-digit" }); }
@@ -231,7 +231,8 @@
         '<div id="oauthBox">' + oauthBtns(LG.prov) + "</div>" +
         '<form id="authForm" novalidate><span class="fl">E-mail</span><input class="inp" id="a-email" type="email" required autocomplete="email" inputmode="email" placeholder="tvoj@email.sk" value="' + esc(LG.email) + '">' +
         '<span class="fl">Heslo</span>' + (m === "up" ? pwField("a-pw", "new-password", "aspoň 8 znakov, písmeno a číslica") : pwField("a-pw", "current-password", "tvoje heslo")) +
-        '<button class="btn full" type="submit" style="margin-top:16px">' + (m === "up" ? "Vytvoriť účet" : "Prihlásiť sa") + "</button></form>" +
+        '<button class="btn full" type="submit" style="margin-top:16px">' + (m === "up" ? "Vytvoriť účet" : "Prihlásiť sa") + "</button>" +
+        '<div class="form-msg" id="authMsg" role="alert" aria-live="assertive">' + (LG.msg || "") + "</div></form>" +
         (m === "in" ? '<p class="alt"><button type="button" class="link-plain" data-act="lg" data-m="code">Zabudnuté heslo? Prihlás sa kódom z e-mailu</button></p>'
           : '<p class="legal" style="margin-top:12px">Na e-mail ti príde kód na potvrdenie. Vytvorením účtu potvrdzuješ, že máš aspoň 16 rokov. Ako chránime tvoje údaje, nájdeš v <a class="link-plain" href="privacy.html" target="_blank">zásadách ochrany súkromia</a>.</p>');
     } else if (m === "code") {
@@ -253,24 +254,45 @@
     if (!LG.prov && api.authProviders) api.authProviders().then(function (p) { LG.prov = p || {}; var b = $("oauthBox"); if (b) b.innerHTML = oauthBtns(LG.prov); });
     var code = pending();
     if (code) api.inviteInfo(code).then(function (i) { var el = $("invCard"); if (el && i) el.innerHTML = invCard(i); }).catch(function () {});
+    LG.msg = "";
+    setTimeout(function () { fitConsent(true); }, 0);
     var af = $("authForm");
+    // chyba sa ukáže priamo pod tlačidlom (nie len na chvíľu dole, kde ju môže zakryť lišta cookies)
+    function amsg(h) {
+      var el = $("authMsg"), c = $("consent"), o = $("onb");
+      if (!el) return;
+      el.innerHTML = h || "";
+      if (!h) return;
+      if (el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+      if (c && o) { var over = el.getBoundingClientRect().bottom - c.getBoundingClientRect().top + 12; if (over > 0) o.scrollTop += over; }
+    }
+    if (af) af.oninput = function () { amsg(""); };
     if (af) af.onsubmit = function (e) {
       e.preventDefault();
       var em = $("a-email").value.trim(), pw = $("a-pw").value, b = af.querySelector("button[type=submit]");
-      LG.email = em;
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { toast("Zadaj platný e-mail."); return; }
-      if (LG.mode === "up" && pwBad(pw)) { toast(pwBad(pw)); return; }
-      if (!pw) { toast("Zadaj heslo."); return; }
+      LG.email = em; amsg("");
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { amsg("Zadaj platný e-mail."); return; }
+      if (LG.mode === "up" && pwBad(pw)) { amsg(esc(pwBad(pw))); return; }
+      if (!pw) { amsg("Zadaj heslo."); return; }
       spin(b);
       if (LG.mode === "in") api.signIn(em, pw).then(loggedIn).catch(function (x) {
         unspin(b);
-        if (x.code === "unconfirmed") { api.resendSignup(em).catch(function () {}); LG.mode = "confirm"; renderLogin(); }
-        err(x);
+        if (x.code === "unconfirmed") { api.resendSignup(em).catch(function () {}); LG.mode = "confirm"; renderLogin(); err(x); return; }
+        if (x.code === "invalid") {
+          amsg("<b>Nesprávny e-mail alebo heslo.</b><br>Ešte nemáš účet? <button type=\"button\" class=\"link-plain\" data-act=\"lg\" data-m=\"up\">Vytvor si ho</button><br>" +
+            "Nepamätáš si heslo? <button type=\"button\" class=\"link-plain\" data-act=\"lg\" data-m=\"code\">Prihlás sa kódom z e-mailu</button>");
+          return;
+        }
+        amsg(esc(x && x.message || "Prihlásenie sa nepodarilo. Skús to znova."));
       });
       else { ev("f_signup"); api.signUp(em, pw).then(function (r) {
         if (r.session) return loggedIn();
         LG.mode = "confirm"; renderLogin(); toast("Poslali sme ti kód na potvrdenie e-mailu.");
-      }).catch(function (x) { unspin(b); err(x); if (/už má účet/.test(x.message)) { LG.mode = "in"; renderLogin(); } }); }
+      }).catch(function (x) {
+        unspin(b);
+        if (/už má účet/.test(x.message)) { LG.mode = "in"; LG.msg = esc(x.message); renderLogin(); return; }
+        amsg(esc(x && x.message || "Účet sa nepodarilo vytvoriť. Skús to znova."));
+      }); }
     };
     var cr = $("codeReq");
     if (cr) cr.onsubmit = function (e) {
@@ -2422,7 +2444,7 @@
     try { localStorage.removeItem("eb_stats"); } catch (e) {}
     if (api && api.consentLog) api.consentLog(id, !!on, CONSENT_V);
     if (!on) { STQ.q = {}; STQ.n = 0; clearTimeout(STQ.t); STQ.t = null; }
-    var b = $("consent"); if (b) b.remove();
+    var b = $("consent"); if (b) b.remove(); fitConsent();
   }
   // po súhlase: prvé meranie hneď (dovtedy sa nič neposlalo)
   function afterConsent(on) {
@@ -2475,7 +2497,21 @@
     d.innerHTML = '<b>🍪 Cookies</b><p>EliteBiker s.r.o. používa nevyhnutné cookies na prihlásenie a chod appky. Analytické povolíš len ty: ukážu nám súčty používania (napríklad koľko jázd sa založilo, typ zariadenia), nikdy nie to, čo robíš ty, ani tvoj profil. Súhlas odvoláš kedykoľvek v Profile. <a class="link-plain" href="privacy.html#cookies" target="_blank">Zásady cookies</a></p>' +
       '<div class="cbtns c3"><button type="button" class="btn sm gh" data-act="consent" data-v="0">Odmietnuť</button><button type="button" class="btn sm gh" data-act="cookies">Nastaviť</button><button type="button" class="btn sm gh" data-act="consent" data-v="1">Prijať všetky</button></div>';
     document.querySelector(".app").appendChild(d);
+    fitConsent(true);
   }
+  // Lišta cookies nesmie zakryť prihlásenie: pod obsah pridáme miesto vo výške lišty a formulár posunieme nad ňu
+  function fitConsent(scroll) {
+    var o = $("onb"), c = $("consent");
+    if (!o) return;
+    if (!c || o.classList.contains("hide")) { o.style.paddingBottom = ""; return; }
+    o.style.paddingBottom = (c.offsetHeight + 28) + "px";
+    if (!scroll) return;
+    var btn = o.querySelector("#authForm button[type=submit], #codeReq button[type=submit], #codeForm button[type=submit]");
+    if (!btn) return;
+    var over = btn.getBoundingClientRect().bottom - c.getBoundingClientRect().top + 16;
+    if (over > 0) o.scrollTop += over;
+  }
+  window.addEventListener("resize", function () { fitConsent(); });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible") return;
     if (TRK.day && TRK.day !== todayKey()) { TRK.sent = false; track("open"); }

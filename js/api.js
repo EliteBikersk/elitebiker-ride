@@ -106,7 +106,7 @@
         if (!r.error) return;
         var e;
         if (/not confirmed/i.test(r.error.message)) { e = new Error("E-mail ešte nie je potvrdený. Zadaj kód, ktorý sme ti poslali."); e.code = "unconfirmed"; throw e; }
-        if (/invalid/i.test(r.error.message)) throw new Error("Nesprávny e-mail alebo heslo.");
+        if (/invalid/i.test(r.error.message)) { e = new Error("Nesprávny e-mail alebo heslo."); e.code = "invalid"; throw e; }
         fail(r.error, "Prihlásenie sa nepodarilo.");
       });
     },
