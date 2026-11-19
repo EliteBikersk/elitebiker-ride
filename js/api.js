@@ -475,14 +475,15 @@
     },
     // na čo chcem upozornenia (null = ešte nenastavené, teda všetko)
     prefs: function () {
-      return sb.from("notify_prefs").select("push").eq("user_id", me.id).maybeSingle().then(function (r) { fail(r.error, "Nastavenia upozornení sa nepodarilo načítať."); return r.data ? r.data.push : null; });
+      // { push: [...] alebo null, km: vzdialenosť pre jazdy EliteBiker alebo null = celé Slovensko }
+      return sb.from("notify_prefs").select("push, official_km").eq("user_id", me.id).maybeSingle().then(function (r) { fail(r.error, "Nastavenia upozornení sa nepodarilo načítať."); return { push: r.data ? r.data.push : null, km: r.data ? r.data.official_km : null }; });
     },
-    savePrefs: function (push) {
-      var msg = "Nastavenie sa nepodarilo uložiť.";
-      return sb.from("notify_prefs").update({ push: push }).eq("user_id", me.id).select("user_id").then(function (r) {
+    savePrefs: function (push, km) {
+      var msg = "Nastavenie sa nepodarilo uložiť.", row = { push: push, official_km: km || null };
+      return sb.from("notify_prefs").update(row).eq("user_id", me.id).select("user_id").then(function (r) {
         fail(r.error, msg);
         if (r.data && r.data.length) return;
-        return sb.from("notify_prefs").insert({ user_id: me.id, push: push }).then(function (x) { fail(x.error, msg); });
+        return sb.from("notify_prefs").insert(Object.assign({ user_id: me.id }, row)).then(function (x) { fail(x.error, msg); });
       });
     },
     pushDelete: function (endpoint) { return sb.from("push_subscriptions").delete().eq("endpoint", endpoint).then(function (r) { fail(r.error); }); },

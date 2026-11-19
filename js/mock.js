@@ -342,8 +342,8 @@
       changed(); return wait();
     },
     unblock: function (id) { D.blocks = (D.blocks || []).filter(function (x) { return x !== id; }); changed(); return wait(); },
-    prefs: function () { return wait(D.prefs ? D.prefs.slice() : null); },
-    savePrefs: function (push) { D.prefs = push.slice(); save(); return wait(); },
+    prefs: function () { return wait({ push: D.prefs ? D.prefs.slice() : null, km: D.offKm || null }); },
+    savePrefs: function (push, km) { D.prefs = push.slice(); D.offKm = km || null; save(); return wait(); },
     pushDevices: function () { return wait(D.push ? [{ endpoint: "demo", device: D.pushDev || "Toto zariadenie", created_at: new Date().toISOString(), last_status: 201, last_at: new Date().toISOString() }] : []); },
     pushTest: function () { return wait({ sent: 1 }); },
     /* ---------- jazdy spolu ---------- */
