@@ -214,7 +214,7 @@
   var LG = { mode: "in", email: "", sent: false };
   function pending() { try { return localStorage.getItem("eb_pozvanka"); } catch (e) { return null; } }
   function pwField(id, auto, ph) {
-    return '<div class="pwf"><input class="inp" id="' + id + '" type="password" required minlength="' + (auto === "new-password" ? 8 : 1) + '" autocomplete="' + auto + '" placeholder="' + ph + '">' +
+    return '<div class="pwf"><input class="inp" id="' + id + '" type="password" required minlength="' + (auto === "new-password" ? 8 : 1) + '" autocomplete="' + auto + '" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="' + ph + '">' +
       '<button type="button" class="eye" data-act="eye" data-for="' + id + '" aria-label="Zobraziť heslo">' + IC.eye + "</button></div>";
   }
   function spin(b) { b.disabled = true; b.dataset.t = b.innerHTML; b.innerHTML = '<span class="spin-sm"></span>'; }
@@ -229,7 +229,7 @@
     if (m === "in" || m === "up") {
       body = '<div class="seg" role="tablist"><button type="button" data-act="lg" data-m="in" class="' + (m === "in" ? "on" : "") + '">Prihlásiť sa</button><button type="button" data-act="lg" data-m="up" class="' + (m === "up" ? "on" : "") + '">Nový účet</button></div>' +
         '<div id="oauthBox">' + oauthBtns(LG.prov) + "</div>" +
-        '<form id="authForm" novalidate><span class="fl">E-mail</span><input class="inp" id="a-email" type="email" required autocomplete="email" inputmode="email" placeholder="tvoj@email.sk" value="' + esc(LG.email) + '">' +
+        '<form id="authForm" novalidate><span class="fl">E-mail</span><input class="inp" id="a-email" type="email" required autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="email" placeholder="tvoj@email.sk" value="' + esc(LG.email) + '">' +
         '<span class="fl">Heslo</span>' + (m === "up" ? pwField("a-pw", "new-password", "aspoň 8 znakov, písmeno a číslica") : pwField("a-pw", "current-password", "tvoje heslo")) +
         '<button class="btn full" type="submit" style="margin-top:16px">' + (m === "up" ? "Vytvoriť účet" : "Prihlásiť sa") + "</button>" +
         '<div class="form-msg" id="authMsg" role="alert" aria-live="assertive">' + (LG.msg || "") + "</div></form>" +
@@ -279,8 +279,9 @@
         unspin(b);
         if (x.code === "unconfirmed") { api.resendSignup(em).catch(function () {}); LG.mode = "confirm"; renderLogin(); err(x); return; }
         if (x.code === "invalid") {
-          amsg("<b>Nesprávny e-mail alebo heslo.</b><br>Ešte nemáš účet? <button type=\"button\" class=\"link-plain\" data-act=\"lg\" data-m=\"up\">Vytvor si ho</button><br>" +
-            "Nepamätáš si heslo? <button type=\"button\" class=\"link-plain\" data-act=\"lg\" data-m=\"code\">Prihlás sa kódom z e-mailu</button>");
+          amsg("<b>Nesprávny e-mail alebo heslo.</b><br>Ak ti mobil heslo doplnil sám, môže byť uložené pre e-shop elitebiker.sk a to je iné.<br>" +
+            "Najistejšie: <button type=\"button\" class=\"link-plain\" data-act=\"lg\" data-m=\"code\">Prihlás sa kódom z e-mailu</button> a potom si nastav nové heslo.<br>" +
+            "Ešte nemáš účet? <button type=\"button\" class=\"link-plain\" data-act=\"lg\" data-m=\"up\">Vytvor si ho</button>");
           return;
         }
         amsg(esc(x && x.message || "Prihlásenie sa nepodarilo. Skús to znova."));
