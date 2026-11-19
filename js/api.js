@@ -475,11 +475,11 @@
     },
     // na čo chcem upozornenia (null = ešte nenastavené, teda všetko)
     prefs: function () {
-      // { push: [...] alebo null, km: vzdialenosť pre jazdy EliteBiker alebo null = celé Slovensko }
-      return sb.from("notify_prefs").select("push, official_km").eq("user_id", me.id).maybeSingle().then(function (r) { fail(r.error, "Nastavenia upozornení sa nepodarilo načítať."); return { push: r.data ? r.data.push : null, km: r.data ? r.data.official_km : null }; });
+      // { push: [...] alebo null, km: do akej vzdialenosti vidím verejné jazdy (null = 30 km, 1000 = celé Slovensko) }
+      return sb.from("notify_prefs").select("push, ride_km").eq("user_id", me.id).maybeSingle().then(function (r) { fail(r.error, "Nastavenia upozornení sa nepodarilo načítať."); return { push: r.data ? r.data.push : null, km: r.data ? r.data.ride_km : null }; });
     },
     savePrefs: function (push, km) {
-      var msg = "Nastavenie sa nepodarilo uložiť.", row = { push: push, official_km: km || null };
+      var msg = "Nastavenie sa nepodarilo uložiť.", row = { push: push, ride_km: km || null };
       return sb.from("notify_prefs").update(row).eq("user_id", me.id).select("user_id").then(function (r) {
         fail(r.error, msg);
         if (r.data && r.data.length) return;
